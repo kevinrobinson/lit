@@ -1,4 +1,4 @@
-# 🔥 Language Interpretability Tool (LIT)
+# 🔥 Language Interpretability Tool (LIT).
 
 <!--* freshness: { owner: 'lit-dev' reviewed: '2020-08-04' } *-->
 
