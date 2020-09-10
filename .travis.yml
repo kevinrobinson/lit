@@ -1,4 +1,7 @@
 language: python
+branches:
+  only:
+  - test
 python:
   - "3.6"
   - "3.7"
