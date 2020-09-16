@@ -141,8 +141,8 @@ export class PredictionScoreModule extends LitModule {
     const getMarginSettings = () =>
         this.classificationService.allMarginSettings;
     this.reactImmediately(getMarginSettings, margins => {
-      // To create the threshold slider, if the data wasn't loaded and available
-      // to do it initially.
+      // Working around an issue with not responding to changes
+      // to `this.classificationService.marginSettings`
       this.requestUpdate();
       this.updateThreshold();
       // Update colors of datapoints as they may be based on predicted label.
