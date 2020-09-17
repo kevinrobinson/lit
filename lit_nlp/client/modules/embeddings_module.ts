@@ -28,7 +28,7 @@ import {LitModule} from '../core/lit_module';
 import {BatchRequestCache} from '../lib/caching';
 import {IndexedInput, ModelsMap, Preds, Spec} from '../lib/types';
 import {doesOutputSpecContain, findSpecKeys} from '../lib/utils';
-import {ColorService} from '../services/services';
+import {ClassificationService, ColorService} from '../services/services';
 
 import {styles} from './embeddings_module.css';
 import {styles as sharedStyles} from './shared_styles.css';
@@ -71,6 +71,7 @@ export class EmbeddingsModule extends LitModule {
   @observable private projectedPoints: Point3D[] = [];
 
   private readonly colorService = app.getService(ColorService);
+  private readonly classificationService = app.getService(ClassificationService);
   private resizeObserver!: ResizeObserver;
 
   private scatterGL!: ScatterGL;
@@ -193,11 +194,16 @@ export class EmbeddingsModule extends LitModule {
    */
   private setupReactions() {
     // Don't react immediately; we'll wait and make a single update.
+    // Respond when the classification threshold changes, or colors change.
+    // pointColorer uses the latest settings from colorService automatically,
+    // so to pick up the colors we just need to trigger a rerender on
+    // scatterGL.
+    const getMarginSettings = () => this.classificationService.allMarginSettings;
+    this.react(getMarginSettings, selectedColorOption => {
+      this.updateScatterGL();
+    });
     const getSelectedColorOption = () => this.colorService.selectedColorOption;
     this.react(getSelectedColorOption, selectedColorOption => {
-      // pointColorer uses the latest settings from colorService automatically,
-      // so to pick up the colors we just need to trigger a rerender on
-      // scatterGL.
       this.updateScatterGL();
     });
 
