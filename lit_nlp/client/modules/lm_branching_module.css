@@ -1,0 +1,118 @@
+#branching-root {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.branching-column {
+}
+
+.branching-column.right {
+  padding-left: 20px;
+  flex: 1;
+}
+
+#branching-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: flex-start;
+  overflow-x: scroll;
+}
+
+#lm-branching-input-words {
+  display: flex;
+  flex-direction: column;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+#branches {
+  display: flex;
+  flex-direction: row;
+}
+
+.branch {
+  display: flex;
+  flex-direction: column;
+}
+
+.slider-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.token {
+  padding: 5px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+  margin-left: 5px;
+  margin-right: 5px;
+  background-color: #1c313a;
+  color: white;
+  width: 100px;
+}
+
+.token:hover {
+  background-color: #a4a4a4;
+  cursor: pointer;
+}
+
+.token.selected {
+  background-color: #fbc02d;
+}
+
+.token.masked {
+  text-decoration: line-through;
+}
+
+.token.diff {
+  background-color: #fff263;
+  color: black;
+}
+
+#output-words {
+  display: flex;
+  flex-direction: column;
+}
+
+.lm-branches {
+  font-size: 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100px;
+}
+
+#outputs-container {
+  padding-bottom: 1rem;
+}
+
+.output {
+  width: max-content;
+  padding: 5px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  background-color: #fff263;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+
+.output.low {
+  opacity: 0.1;
+}
+
+.output.same {
+  border: 3px solid #fbc02d;
+  box-sizing: border-box;
+}
+
+.instructions {
+  padding: 5px;
+}
+
+.hidden {
+  display: none;
+}
