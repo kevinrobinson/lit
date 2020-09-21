@@ -21,6 +21,8 @@ from absl import logging
 
 from lit_nlp.api import types
 from lit_nlp.lib import utils
+import tensorflow_datasets as tfds
+
 
 JsonDict = types.JsonDict
 Spec = types.Spec
@@ -87,3 +89,15 @@ class Dataset(object):
     new_spec = utils.remap_dict(self.spec(), field_map)
     new_examples = [utils.remap_dict(ex, field_map) for ex in self.examples]
     return Dataset(new_spec, new_examples)
+
+
+def load_tfds(*args, do_sort=True, **kw):
+  """Load from TFDS, with optional sorting."""
+  # Materialize to NumPy arrays.
+  # This also ensures compatibility with TF1.x non-eager mode, which doesn't
+  # support direct iteration over a tf.data.Dataset.
+  ret = list(tfds.as_numpy(tfds.load(*args, download=True, try_gcs=True, **kw)))
+  if do_sort:
+    # Recover original order, as if you loaded from a TSV file.
+    ret.sort(key=lambda ex: ex['idx'])
+  return ret
