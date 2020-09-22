@@ -10,6 +10,13 @@
   height: 16px;
   --mdc-icon-size: 16px;
   cursor: pointer;
+  user-select: none;
+}
+
+.icon-placeholder {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
 }
 
 .source {
@@ -18,8 +25,9 @@
 
 .navigation-buttons {
   padding-left: 10px;
+  line-height: 1;
 }
 
 .table-container {
-  padding-bottom: 15px;
+  padding-bottom: 20px;
 }
