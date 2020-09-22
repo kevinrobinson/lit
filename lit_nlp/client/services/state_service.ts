@@ -17,6 +17,7 @@
 
 // tslint:disable:no-new-decorators
 import {action, computed, observable, toJS} from 'mobx';
+import {v4 as uuidv4} from 'uuid';
 
 import {IndexedInput, Input, LitMetadata, ModelsMap, ModelSpec, Spec} from '../lib/types';
 
@@ -226,6 +227,9 @@ export class AppState extends LitService implements StateObservedByUrlService {
   async createNewDatapoints(
       data: Input[][], parentIds: string[],
       source: string): Promise<IndexedInput[]> {
+    // Tag all datapoints created as a group.
+    const creationId = uuidv4();
+
     let datapoints: IndexedInput[] = [];
     // Loop through new counterfactuals. Outer loop for input examples,
     // inner loop for list of counterfactuals for each input.
@@ -237,6 +241,7 @@ export class AppState extends LitService implements StateObservedByUrlService {
           'meta': {
             'parentId': parentIds[i],
             'source': source,
+            'creationId': creationId,
             'added': 1,
             'isFavorited': false
           }

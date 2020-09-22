@@ -72,12 +72,12 @@ interface TableHeaderAndData {
 /**
  * Module to show metrics of a model.
  */
-@customElement('metrics-module')
-export class MetricsModule extends LitModule {
+@customElement('generated-diff')
+export class GeneratedDiffModule extends LitModule {
   static title = 'Metrics';
   static numCols = 8;
   static template = () => {
-    return html`<metrics-module></metrics-module>`;
+    return html`<generated-diff></generated-diff>`;
   };
   static supportedPredTypes: LitName[] =
       ['RegressionScore', 'MulticlassPreds', 'GeneratedText', 'SpanLabels'];
@@ -132,7 +132,11 @@ export class MetricsModule extends LitModule {
       // Add the metrics columns.
       const rowMetrics = metricNames.map((key: string) => {
         const num = d.metrics[key] ?? '-';
-        return formatLabelNumber(num);
+        // If the metric is not a whole number, then round to 3 decimal places.
+        if (typeof num === 'number' && num % 1 !== 0) {
+          return num.toFixed(3);
+        }
+        return num;
       });
 
       // Add the "Facet by" columns.
@@ -157,18 +161,18 @@ export class MetricsModule extends LitModule {
   }
 
   firstUpdated() {
-    this.react(() => this.appState.currentInputData, entireDataset => {
-      this.updateDatasetMetrics(entireDataset);
-    });
-    this.react(() => this.selectionService.selectedInputData, () => {
-      this.updateMetricsList();
-    });
-    this.react(() => this.classificationService.allMarginSettings, margins => {
-      this.updateDatasetMetrics(this.appState.currentInputData);
-    });
+    // this.react(() => this.appState.currentInputData, entireDataset => {
+    //   this.updateDatasetMetrics(entireDataset);
+    // });
+    // this.react(() => this.selectionService.selectedInputData, () => {
+    //   this.updateMetricsList();
+    // });
+    // this.react(() => this.classificationService.allMarginSettings, margins => {
+    //   this.updateDatasetMetrics(this.appState.currentInputData);
+    // });
 
-    // Do this once, manually, to avoid duplicate calls on load.
-    this.updateDatasetMetrics(this.appState.currentInputData);
+    // // Do this once, manually, to avoid duplicate calls on load.
+    // this.updateDatasetMetrics(this.appState.currentInputData);
   }
 
   async updateDatasetMetrics(entireDataset: IndexedInput[]) {
@@ -317,13 +321,98 @@ export class MetricsModule extends LitModule {
     return rows;
   }
 
+  @computed
+  get generatedDataPoints() {
+    return this.appState.currentInputData.filter((d: IndexedInput) => d.meta.added);
+  }
+
+  @computed
+  get generations() {
+    const groupedByGeneration: {[key: string]: IndexedInput[]} = {};
+    this.generatedDataPoints.forEach((d: IndexedInput) => {
+      const {source, creationId, parentId} = d.meta;
+      const key = [source || '(unknown)', creationId || ('unknown')].join('-');
+      groupedByGeneration[key] = (groupedByGeneration[key] || []).concat([d]);
+    });
+
+    return Object.keys(groupedByGeneration).map(key => {
+      return {
+        key: key,
+        ds: groupedByGeneration[key]
+      };
+    });
+  }
+
   render() {
+
     return html`
-          <div class="metrics-module-wrapper">
-            ${this.renderFacetSelector()}
-            ${this.renderTable()}
-          </div>
-        `;
+      <div>
+        <b>${this.generatedDataPoints.length} / ${this.appState.currentInputData.length}</b> data points
+        <b>${this.generations.length}</b> generations
+        ${this.generations.map(({key, ds}) => this.renderGeneration(key, ds))}
+      </div>
+    `;
+
+    // return html`
+    //       <div class="generated-diff-wrapper">
+    //         ${this.renderFacetSelector()}
+    //         ${this.renderTable()}
+    //       </div>
+    //     `;
+  }
+
+  renderGeneration(key: string, ds: IndexedInput[]) {
+    return html`
+      <div>
+        <h2>${key}</h2>
+        ${this.renderDiffTable(ds)}
+        <br/><br/><br/>
+      </div>
+    `;
+  }
+
+  renderDiffTable(ds: IndexedInput[]) {
+    const columnVisibility = new Map<string, boolean>();
+    columnVisibility.set('generated', true);
+    columnVisibility.set('parent.label', true);
+    columnVisibility.set('generated.label', true);
+    columnVisibility.set('delta', true);
+    
+    const table = {
+      'header': ['generated', 'label-before', 'label-after', 'delta'],
+      'data': ds.map(d => {
+        const parent = this.appState.getCurrentInputDataById(d.meta.parentId);
+        if (parent == null) return [];
+        const delta = d.data.label - parent.data.label ;
+        return [
+          d.data.sentence,
+          formatLabelNumber(parent.data.label),
+          formatLabelNumber(d.data.label),
+          `${(delta > 0) ? '+' : '-'}${formatLabelNumber(delta)}`
+        ];
+      })
+    };
+    return html`
+      <lit-data-table
+        .columnVisibility=${columnVisibility}
+        .data=${table.data}
+          selectionDisabled
+      ></lit-data-table>
+    `;
+  }
+
+  // ${ds.map(d => this.renderGeneratedDiff(d))}
+  renderGeneratedDiff(d: IndexedInput) {
+    const parent = this.appState.getCurrentInputDataById(d.meta.parentId);
+    if (!parent) return;
+    return html`
+      <div>
+        ${parent.data.sentence}
+        ${d.data.sentence}
+        <br/>
+        <br/>
+      </div>
+     `;
   }
 
   renderTable() {
@@ -401,6 +490,6 @@ export class MetricsModule extends LitModule {
 
 declare global {
   interface HTMLElementTagNameMap {
-    'metrics-module': MetricsModule;
+    'generated-diff': GeneratedDiffModule;
   }
 }
