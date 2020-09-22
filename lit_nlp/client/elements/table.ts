@@ -63,6 +63,8 @@ export class DataTable extends ReactiveElement {
   @observable
   @property({type: Object})
   columnVisibility = new Map<string, boolean>();
+  @property({type: String}) defaultSortName = '';
+  @property({type: String}) defaultSortAscending = true;
 
   // Callbacks
   @property({type: Object}) onSelect: OnSelectCallback = () => {};
@@ -93,6 +95,15 @@ export class DataTable extends ReactiveElement {
   private shiftSelectionStartIndex = 0;
   private shiftSelectionEndIndex = 0;
   private shiftSpanAnchor = SpanAnchor.START;
+
+  constructor() {
+    super();
+    if (this.defaultSortName != '') {
+      this.sortName = this.defaultSortName;
+      console.log('this.sortName', this.sortName);
+    }
+    this.sortAscending = this.defaultSortAscending;
+  }
 
   firstUpdated() {
     const container = this.shadowRoot!.getElementById('rows')!;

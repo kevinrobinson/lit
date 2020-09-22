@@ -24,9 +24,10 @@ import {app} from '../core/lit_app';
 import {LitModule} from '../core/lit_module';
 import {TableData} from '../elements/table';
 import {CallConfig, FacetMap, GroupedExamples, IndexedInput, LitName, ModelsMap, Spec} from '../lib/types';
-import {doesOutputSpecContain, formatLabelNumber} from '../lib/utils';
+import {doesOutputSpecContain, formatLabelNumber, findSpecKeys} from '../lib/utils';
 import {GroupService} from '../services/group_service';
-import {ClassificationService, SliceService} from '../services/services';
+import {RegressionService, ClassificationService, SliceService} from '../services/services';
+import {RegressionInfo} from '../services/regression_service';
 
 import {styles} from './metrics_module.css';
 import {styles as sharedStyles} from './shared_styles.css';
@@ -76,9 +77,12 @@ interface TableHeaderAndData {
 export class GeneratedDiffModule extends LitModule {
   static title = 'Metrics';
   static numCols = 8;
-  static template = () => {
-    return html`<generated-diff></generated-diff>`;
+  static template = (model = '') => {
+    return html`<generated-diff model=${model}></generated-diff>`;
   };
+
+
+  // TODO?
   static supportedPredTypes: LitName[] =
       ['RegressionScore', 'MulticlassPreds', 'GeneratedText', 'SpanLabels'];
 
@@ -88,13 +92,14 @@ export class GeneratedDiffModule extends LitModule {
     return [sharedStyles, styles];
   }
 
+  private readonly regressionService = app.getService(RegressionService);
   private readonly sliceService = app.getService(SliceService);
   private readonly groupService = app.getService(GroupService);
   private readonly classificationService =
       app.getService(ClassificationService);
 
   private datasetMetrics: GroupedMetrics[]|null = null;
-
+  private regressionInfo: RegressionInfo[]|null = null;
   @observable private metricsList: GroupedMetricsForDataset[] = [];
   @observable private facetBySlice: boolean = false;
   @observable private selectedFacets: string[] = [];
@@ -161,6 +166,9 @@ export class GeneratedDiffModule extends LitModule {
   }
 
   firstUpdated() {
+    // this.react(() => this.regressionService.regressionInfo, regressionInfo => {
+    //   this.onRegressionComputed(regressionInfo);
+    // });
     // this.react(() => this.appState.currentInputData, entireDataset => {
     //   this.updateDatasetMetrics(entireDataset);
     // });
@@ -321,6 +329,28 @@ export class GeneratedDiffModule extends LitModule {
     return rows;
   }
 
+  private async onRegressionComputed() {
+    // // ??? not sure on architecture here
+    // const models = this.appState.currentModels;
+    // const model = models[0];
+    // const spec = this.appState.getModelSpec(model);
+    // const regressionKeys = findSpecKeys(spec.output, ['RegressionScore']);
+    // const scoreField = regressionKeys[0];
+    // // const textFields: string[] = findSpecKeys(spec.input, 'TextSegment');
+    // // const scoreFields: string[] = findSpecKeys(spec.output, 'RegressionScore');
+    // // if (scoreFields.length !== 1) {
+    // //   return;
+    // // }
+
+    // // Add the error info for any regression keys.
+    // const ds = this.generatedDataPoints || [];
+    // const ids = ds.map(d => d.id);
+    // // const regressionKeys = Object.keys(regressionPreds[0]);
+    //   // for (let j = 0; j < regressionKeys.length; j++) {
+    // this.regressionInfo = await this.regressionService.getResults(
+    //         ids, model, scoreField);
+  }
+
   @computed
   get generatedDataPoints() {
     return this.appState.currentInputData.filter((d: IndexedInput) => d.meta.added);
@@ -372,32 +402,49 @@ export class GeneratedDiffModule extends LitModule {
   }
 
   renderDiffTable(ds: IndexedInput[]) {
+    // ??? not sure on architecture here
+    const models = this.appState.currentModels;
+    const model = models[0];
+    const spec = this.appState.getModelSpec(model);
+    const regressionKeys = findSpecKeys(spec.output, ['RegressionScore']);
+    const scoreField = regressionKeys[0];
+
+    // actual UI
     const columnVisibility = new Map<string, boolean>();
     columnVisibility.set('generated', true);
-    columnVisibility.set('parent.label', true);
-    columnVisibility.set('generated.label', true);
+    columnVisibility.set(`parent.${scoreField}`, true);
+    columnVisibility.set(`generated.${scoreField}`, true);
     columnVisibility.set('delta', true);
+    // columnVisibility.set('delta_sorted', false);
     
+    const readScore = (id: string): number => {
+      return this.regressionService.regressionInfo[id][model][scoreField].prediction;
+    };
     const table = {
-      'header': ['generated', 'label-before', 'label-after', 'delta'],
+      'header': ['generated', `${scoreField}-before`, `${scoreField}-after`, 'delta'],
       'data': ds.map(d => {
         const parent = this.appState.getCurrentInputDataById(d.meta.parentId);
         if (parent == null) return [];
-        const delta = d.data.label - parent.data.label ;
+        const delta = readScore(d.id) - readScore(parent.id);
         return [
           d.data.sentence,
-          formatLabelNumber(parent.data.label),
-          formatLabelNumber(d.data.label),
-          `${(delta > 0) ? '+' : '-'}${formatLabelNumber(delta)}`
+          formatLabelNumber(readScore(parent.id)),
+          formatLabelNumber(readScore(d.id)),
+          formatLabelNumber(delta)
+          // `${(delta > 0) ? '+' : '-'}${formatLabelNumber(delta)}`,
+          // delta
         ];
       })
     };
     return html`
-      <lit-data-table
-        .columnVisibility=${columnVisibility}
-        .data=${table.data}
-          selectionDisabled
-      ></lit-data-table>
+      <div>
+        <lit-data-table
+          .sortName="delta"
+          .columnVisibility=${columnVisibility}
+          .data=${table.data}
+            selectionDisabled
+        ></lit-data-table>
+      </div>
     `;
   }
 
