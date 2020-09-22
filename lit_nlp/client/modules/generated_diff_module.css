@@ -1,0 +1,25 @@
+.info {
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  color: #3c4043;
+}
+
+.icon-button {
+  width: 16px;
+  height: 16px;
+  --mdc-icon-size: 16px;
+  cursor: pointer;
+}
+
+.source {
+  padding-right: 5px;
+}
+
+.navigation-buttons {
+  padding-left: 10px;
+}
+
+.table-container {
+  padding-bottom: 15px;
+}

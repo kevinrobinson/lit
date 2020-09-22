@@ -16,6 +16,7 @@
  */
 
 // tslint:disable:no-new-decorators
+import '@material/mwc-icon';
 
 import {customElement, html} from 'lit-element';
 import {computed, observable} from 'mobx';
@@ -29,7 +30,7 @@ import {GroupService} from '../services/group_service';
 import {RegressionService, ClassificationService, SliceService} from '../services/services';
 import {RegressionInfo} from '../services/regression_service';
 
-import {styles} from './metrics_module.css';
+import {styles} from './generated_diff_module.css';
 import {styles as sharedStyles} from './shared_styles.css';
 
 // Each entry from the server.
@@ -75,7 +76,7 @@ interface TableHeaderAndData {
  */
 @customElement('generated-diff')
 export class GeneratedDiffModule extends LitModule {
-  static title = 'Metrics';
+  static title = 'Counterfactual Changes';
   static numCols = 8;
   static template = (model = '') => {
     return html`<generated-diff model=${model}></generated-diff>`;
@@ -374,30 +375,60 @@ export class GeneratedDiffModule extends LitModule {
   }
 
   render() {
+    if (this.generatedDataPoints.length === 0) {
+      return html`<div class="info">No counterfactuals created yet.</div>`;
+    }
 
     return html`
       <div>
-        <b>${this.generatedDataPoints.length} / ${this.appState.currentInputData.length}</b> data points
-        <b>${this.generations.length}</b> generations
-        ${this.generations.map(({key, ds}) => this.renderGeneration(key, ds))}
+        ${this.generations.map(({key, ds}, index) => this.renderGeneration(key, ds, index))}
       </div>
     `;
-
-    // return html`
-    //       <div class="generated-diff-wrapper">
-    //         ${this.renderFacetSelector()}
-    //         ${this.renderTable()}
-    //       </div>
-    //     `;
   }
 
-  renderGeneration(key: string, ds: IndexedInput[]) {
+  renderGeneration(key: string, ds: IndexedInput[], generationIndex: number) {
     return html`
       <div>
-        <h2>${key}</h2>
+        <div class="info">
+          <b class="source">${ds[0].meta.source}</b>
+          generated ${ds.length === 1 ? '1 datapoint' : `${ds.length} datapoints`}.
+          ${this.renderNavigationStrip(generationIndex)}
+         </div>
         ${this.renderDiffTable(ds)}
-        <br/><br/><br/>
       </div>
+    `;
+  }
+
+  renderNavigationStrip(generationIndex) {
+
+    const onChangeOffset = (delta) => {
+      const infos = this.shadowRoot!.querySelectorAll('.info');
+      const nextIndex = generationIndex + delta;
+      if (nextIndex < infos.length && nextIndex >= 0) {
+        infos[nextIndex].scrollIntoView();
+       }
+    };
+    if (this.generations.length === 1) {
+      return null;
+    }
+
+    const previousButton = html`
+      <mwc-icon class='icon-button'
+        @click=${() => {onChangeOffset(-1);}}>
+        chevron_left
+      </mwc-icon>
+    `;
+    const nextButton = html`
+      <mwc-icon class='icon-button'
+        @click=${() => {onChangeOffset(1);}}>
+        chevron_right
+      </mwc-icon>
+    `;
+    return html`
+      <span class="navigation-buttons">
+        ${generationIndex - 1 >= 0 ? previousButton : null}
+        ${generationIndex + 1 <= this.generations.length ? nextButton : null}
+      </span>
     `;
   }
 
@@ -411,35 +442,38 @@ export class GeneratedDiffModule extends LitModule {
 
     // actual UI
     const columnVisibility = new Map<string, boolean>();
-    columnVisibility.set('generated', true);
-    columnVisibility.set(`parent.${scoreField}`, true);
-    columnVisibility.set(`generated.${scoreField}`, true);
+    columnVisibility.set('generated sentence', true);
+    columnVisibility.set(`parent ${scoreField}`, true);
+    columnVisibility.set(`generated ${scoreField}`, true);
     columnVisibility.set('delta', true);
-    // columnVisibility.set('delta_sorted', false);
     
-    const readScore = (id: string): number => {
-      return this.regressionService.regressionInfo[id][model][scoreField].prediction;
+    const BLANK = '-';
+    const readScore = (id: string): number | null => {
+       return this.regressionService.regressionInfo[id]?.[model]?.[scoreField]?.prediction;
     };
     const table = {
       'header': ['generated', `${scoreField}-before`, `${scoreField}-after`, 'delta'],
       'data': ds.map(d => {
         const parent = this.appState.getCurrentInputDataById(d.meta.parentId);
         if (parent == null) return [];
-        const delta = readScore(d.id) - readScore(parent.id);
+        const scoreBefore = readScore(parent.id);
+        const scoreAfter = readScore(d.id);
+        const delta = (scoreBefore != null && scoreAfter != null)
+          ? scoreAfter - scoreBefore
+          : null;
         return [
           d.data.sentence,
-          formatLabelNumber(readScore(parent.id)),
-          formatLabelNumber(readScore(d.id)),
-          formatLabelNumber(delta)
-          // `${(delta > 0) ? '+' : '-'}${formatLabelNumber(delta)}`,
-          // delta
+          scoreBefore ? formatLabelNumber(scoreBefore) : BLANK,
+          scoreAfter ? formatLabelNumber(scoreAfter) : BLANK,
+          delta ? formatLabelNumber(delta) : BLANK
         ];
       })
     };
     return html`
-      <div>
+      <div class="table-container">
         <lit-data-table
-          .sortName="delta"
+          defaultSortName="delta"
+          .defaultSortAscending=${false}
           .columnVisibility=${columnVisibility}
           .data=${table.data}
             selectionDisabled

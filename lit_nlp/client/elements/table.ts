@@ -63,8 +63,8 @@ export class DataTable extends ReactiveElement {
   @observable
   @property({type: Object})
   columnVisibility = new Map<string, boolean>();
-  @property({type: String}) defaultSortName = '';
-  @property({type: String}) defaultSortAscending = true;
+  @property({type: String}) defaultSortName = 'default';
+  @property({type: Boolean}) defaultSortAscending = true;
 
   // Callbacks
   @property({type: Object}) onSelect: OnSelectCallback = () => {};
@@ -96,16 +96,10 @@ export class DataTable extends ReactiveElement {
   private shiftSelectionEndIndex = 0;
   private shiftSpanAnchor = SpanAnchor.START;
 
-  constructor() {
-    super();
-    if (this.defaultSortName != '') {
-      this.sortName = this.defaultSortName;
-      console.log('this.sortName', this.sortName);
-    }
-    this.sortAscending = this.defaultSortAscending;
-  }
-
   firstUpdated() {
+    this.sortName = this.defaultSortName;
+    this.sortAscending = this.defaultSortAscending;
+
     const container = this.shadowRoot!.getElementById('rows')!;
     this.resizeObserver = new ResizeObserver(() => {
       this.resize();
@@ -146,9 +140,9 @@ export class DataTable extends ReactiveElement {
   }
 
   @computed
-  get sortIndex(): number|undefined {
-    return (this.sortName == null) ? undefined :
-                                     this.columnNames.indexOf(this.sortName);
+  get sortIndex(): number {
+    const sortName = this.sortName || this.defaultSortName;
+    return (sortName == null) ? 0 : this.columnNames.indexOf(sortName);
   }
 
   /**
@@ -193,11 +187,9 @@ export class DataTable extends ReactiveElement {
   getSortedData(): TableData[] {
     const source = this.stickySortedData ?? this.rowFilteredData;
     let sortedData = source.slice();
-    if (this.sortName != null) {
-      sortedData = sortedData.sort(
-          (a, b) => (this.sortAscending ? ascending : descending)(
-              a[this.sortIndex!], b[this.sortIndex!]));
-    }
+    sortedData = sortedData.sort(
+      (a, b) => (this.sortAscending ? ascending : descending)(
+        a[this.sortIndex], b[this.sortIndex]));
 
     // Store a mapping from the row to data indices.
     // TODO(lit-dev): remove hard-coded dependence on first column as index.
@@ -355,11 +347,16 @@ export class DataTable extends ReactiveElement {
       this.onSelect([...this.selectedIndices]);
     };
 
-    const isDefaultView = this.sortName === undefined &&
-        this.columnSearchQueries.size === 0 && !this.filterSelected;
+    const isDefaultView = (
+      (this.sortName === this.defaultSortName) &&
+      (this.sortAscending === this.defaultSortAscending) &&
+      (this.columnSearchQueries.size === 0) &&
+      !this.filterSelected
+    );
     const onClickResetView = () => {
       this.columnSearchQueries.clear();
-      this.sortName = undefined;  // reset to input ordering
+      this.sortName = this.defaultSortName;
+      this.sortAscending = this.defaultSortAscending;
       this.filterSelected = false;
     };
 
