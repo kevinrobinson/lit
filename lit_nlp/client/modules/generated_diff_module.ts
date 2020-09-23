@@ -20,6 +20,8 @@ import '@material/mwc-icon';
 
 import {customElement, html} from 'lit-element';
 import {computed, observable} from 'mobx';
+import {classMap} from 'lit-html/directives/class-map';
+import {styleMap} from 'lit-html/directives/style-map';
 
 import {app} from '../core/lit_app';
 import {LitModule} from '../core/lit_module';
@@ -116,17 +118,44 @@ export class GeneratedDiffModule extends LitModule {
   private formattedDeltaRows(scoresForRows: DeltaRow[]): any[] {
     const BLANK = '-';
     return scoresForRows.map((scores: DeltaRow) => {
-      const {before, after, d}  = scores;
+      const {before, after, d, parent}  = scores;
       const delta = (before != null && after != null)
         ? after - before
         : null;
       return [
-        d.data.sentence,
+        this.formattedSentence(parent.data.sentence, d.data.sentence),
         before ? formatLabelNumber(before) : BLANK,
         after ? formatLabelNumber(after) : BLANK,
         delta ? formatLabelNumber(delta) : BLANK
       ];
     });
+  }
+
+  private formattedSentence(before: string, after: string) {
+    // Split sentence text naively
+    var i = 0;
+    while (before[i] === after[i]) {
+      i += 1;
+    }
+    var j = 0;
+    while (before[before.length - j - 1] === after[after.length - j - 1]) {
+      j += 1;
+    }
+    var start = i;
+    var end = after.length - j;
+
+    /// Styles, because classes don't make sense within the Table's shadow DOM
+    const styles = styleMap({
+      'padding': '3px',
+      'background': '#fbc02d'
+    });
+    return html`
+      <div>
+        ${after.slice(0, start)}
+        <span style=${styles}>${after.slice(start, end)}</span>
+        ${after.slice(end)}
+      </div>
+    `;
   }
 
   private readTableRowsFromService(ds: IndexedInput[], readScore: (id: string) => number | undefined): DeltaRow[] {
@@ -266,7 +295,7 @@ export class GeneratedDiffModule extends LitModule {
     const columnVisibility = new Map<string, boolean>();
     columnVisibility.set('generated sentence', true);
     columnVisibility.set(`parent ${fieldName}`, true);
-    columnVisibility.set(`generated ${fieldName}`, true);
+    columnVisibility.set(`${fieldName}`, true);
     columnVisibility.set('delta', true);
     
     return html`
