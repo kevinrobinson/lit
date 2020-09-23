@@ -33,47 +33,24 @@ import {RegressionInfo} from '../services/regression_service';
 import {styles} from './generated_diff_module.css';
 import {styles as sharedStyles} from './shared_styles.css';
 
-// Each entry from the server.
-interface MetricsResponse {
-  'pred_key': string;
-  'label_key': string;
-  'metrics': {[key: string]: number};
-}
+type Source = {
+  modelName: string,
+  specKey: LitName,
+  fieldName: string
+};
 
-// For rendering the table.
-interface MetricsRow {
-  'model': string;
-  'selection': string;
-  'predKey': string;
-  'labelKey': string;
-  // This is the name of the metrics subcomponent.
-  'group': string;
-  'numExamples': number;
-  // These have arbitrary keys returned by subcomponents on the backend.
-  // We'll collect all the field names before rendering the table.
-  'metrics': {[key: string]: number};
-  'facets'?: FacetMap;
-}
+type ScoreReader = (id: string) => number | undefined;
 
-interface GroupedMetrics {
-  [group: string]: MetricsResponse[];
-}
-
-interface GroupedMetricsForDataset {
-  'metrics': GroupedMetrics[];
-  'name': string;
-  'length': number;
-  'facets'?: FacetMap;
-}
-
-interface TableHeaderAndData {
-  'header': string[];
-  'data': TableData[];
-}
+type DeltaRow = {
+  before?: number,
+  after?: number,
+  d: IndexedInput,
+  parent: IndexedInput
+};
 
 /**
  * Module to sort generated countefactuals by the change in prediction for a
- regression model.
+ regression or multiclass classification model.
  */
 @customElement('generated-diff')
 export class GeneratedDiffModule extends LitModule {
@@ -83,9 +60,14 @@ export class GeneratedDiffModule extends LitModule {
     return html`<generated-diff ></generated-diff>`;
   };
 
-  static supportedPredTypes: LitName[] =
-      ['RegressionScore'];
+  static shouldDisplayModule(modelSpecs: ModelsMap, datasetSpec: Spec) {
+    return doesOutputSpecContain(modelSpecs, [
+      'RegressionScore',
+      'MulticlassPreds'
+    ]);
+  }
 
+  // TODO
   static duplicateForModelComparison = true;
 
   static get styles() {
@@ -93,6 +75,7 @@ export class GeneratedDiffModule extends LitModule {
   }
 
   private readonly regressionService = app.getService(RegressionService);
+  private readonly classificationService = app.getService(ClassificationService);
 
   /**
    * Filter to only generated data points.
@@ -123,30 +106,77 @@ export class GeneratedDiffModule extends LitModule {
   }
 
   /**
-   * Read values from the regression service if they're available, and format
-   * them for a table.
+   * Read values from the regression or classification service if they're available,
+     and format them for a table.
   */
-  private getTableRows(modelName: string, fieldName: string, ds: IndexedInput[]) {
-    const BLANK = '-';
-    const readScore = (id: string): number | null => {
-       return this.regressionService.regressionInfo[id]?.[modelName]?.[fieldName]?.prediction;
-    };
+  private getTableRows(source: Source, scoreReader: ScoreReader, ds: IndexedInput[]) {
+    
+  }
 
-    return ds.map(d => {
-      const parent = this.appState.getCurrentInputDataById(d.meta.parentId);
-      if (parent == null) return [];
-      const scoreBefore = readScore(parent.id);
-      const scoreAfter = readScore(d.id);
-      const delta = (scoreBefore != null && scoreAfter != null)
-        ? scoreAfter - scoreBefore
+  private formattedDeltaRows(scoresForRows: DeltaRow[]): any[] {
+    const BLANK = '-';
+    return scoresForRows.map((scores: DeltaRow) => {
+      const {before, after, d}  = scores;
+      const delta = (before != null && after != null)
+        ? after - before
         : null;
       return [
         d.data.sentence,
-        scoreBefore ? formatLabelNumber(scoreBefore) : BLANK,
-        scoreAfter ? formatLabelNumber(scoreAfter) : BLANK,
+        before ? formatLabelNumber(before) : BLANK,
+        after ? formatLabelNumber(after) : BLANK,
         delta ? formatLabelNumber(delta) : BLANK
       ];
     });
+  }
+
+  private readTableRowsFromService(ds: IndexedInput[], readScore: (id: string) => number | undefined): DeltaRow[] {
+    return ds.flatMap(d => {
+      const parent = this.appState.getCurrentInputDataById(d.meta.parentId);
+      if (parent == null) return [];
+      
+      const before = readScore(parent.id);
+      const after = readScore(d.id);
+      const deltaRow: DeltaRow = {before, after, d, parent};
+      return [deltaRow];
+    });
+  }
+
+  getScoreReaders(source: Source): ScoreReader[] {
+    const {modelName, specKey, fieldName} = source;
+
+    // Check for regression scores
+    if (specKey === 'RegressionScore') {
+      const readScoreForRegression: ScoreReader = id => {
+        return this.regressionService.regressionInfo[id]?.[modelName]?.[fieldName]?.prediction;
+      };
+      return [readScoreForRegression];
+    }
+
+    // Also support multiclass for multiple classes or binary
+    if (specKey === 'MulticlassPreds') {
+      const spec = this.appState.getModelSpec(modelName);
+      const predictionLabels = spec.output[fieldName].vocab!;
+      const margins = this.classificationService.marginSettings[modelName] || {};
+
+      const nullIdx = spec.output[fieldName].null_idx;
+      if (predictionLabels.length === 2 && nullIdx != null) {
+         const readScoreForMultiClassBinary: ScoreReader = id => {
+           return this.classificationService.classificationInfo[id]?.[modelName]?.[fieldName]?.predictions[1 - nullIdx];
+        };
+        return [readScoreForMultiClassBinary];
+      }
+
+      // Multiple classes for multiple tables.
+      predictionLabels.map((predictionLabel, index) => {
+        const readScoreForMultipleClasses: ScoreReader = id => {
+           return this.classificationService.classificationInfo[id]?.[modelName]?.[fieldName]?.predictions[index];
+        };
+        return readScoreForMultipleClasses;
+      });
+    }
+
+    // should never reach
+    return [];
   }
 
   render() {
@@ -154,26 +184,26 @@ export class GeneratedDiffModule extends LitModule {
       return html`<div class="info">No counterfactuals created yet.</div>`;
     }
 
-    // Fan out by each (model, regression field)
-    const modelKeyPairs = this.appState.currentModels.flatMap((modelName: string) => {
+    // Fan out by each (model, outputKey, fieldName)
+    const sources = this.appState.currentModels.flatMap((modelName: string): Source[] => {
       const modelSpec = this.appState.getModelSpec(modelName);
-      const regressionKeys = findSpecKeys(modelSpec.output, ['RegressionScore']);
-      return regressionKeys.map((fieldName) => ({modelName, fieldName}));
+      const outputSpecKeys: LitName[] = ['RegressionScore', 'MulticlassPreds'];
+      return outputSpecKeys.flatMap(specKey => {
+        const fieldNames = findSpecKeys(modelSpec.output, [specKey]);
+        return fieldNames.map(fieldName => ({modelName, specKey, fieldName}));
+       });
     });
 
-    return modelKeyPairs.map(({modelName, fieldName}) => {
-      return html`
-        <div>
-          ${this.generations.map(({generationKey, ds}, index) => {
-            return this.renderGeneration(modelName, fieldName, generationKey, ds, index);
-          })}
-        </div>
-      `;
-     });
+    return html`
+      <div>
+        ${this.generations.map(({generationKey, ds}, index) => {
+          return this.renderGeneration(sources, generationKey, ds, index);
+        })}
+      </div>
+    `;
   }
 
-  renderGeneration(modelName: string, fieldName: string, key: string,
-    ds: IndexedInput[], generationIndex: number) {
+  renderGeneration(sources: Source[], key: string, ds: IndexedInput[], generationIndex: number) {
     return html`
       <div>
         <div class="info">
@@ -181,7 +211,7 @@ export class GeneratedDiffModule extends LitModule {
           generated ${ds.length === 1 ? '1 datapoint' : `${ds.length} datapoints`}
           ${this.renderNavigationStrip(generationIndex)}
          </div>
-        ${this.renderDiffTable(modelName, fieldName, ds)}
+        ${this.renderTables(sources, ds)}
       </div>
     `;
   }
@@ -219,31 +249,37 @@ export class GeneratedDiffModule extends LitModule {
     `;
   }
 
-  renderDiffTable(modelName: string, fieldName: string, ds: IndexedInput[]) {
+  renderTables(sources: Source[], ds: IndexedInput[]) {
+    return sources.flatMap(source => {
+      const scoreReaders = this.getScoreReaders(source);
+      return scoreReaders.map(scoreReader => {
+        const scoresForRows = this.readTableRowsFromService(ds, scoreReader);
+        const rows = this.formattedDeltaRows(scoresForRows);
+        return this.renderTableForDeltas(source, rows);
+      });
+    });
+  }
+
+  renderTableForDeltas(source: Source, rows: any[]) {
+    const {fieldName} = source;
+
     const columnVisibility = new Map<string, boolean>();
     columnVisibility.set('generated sentence', true);
     columnVisibility.set(`parent ${fieldName}`, true);
     columnVisibility.set(`generated ${fieldName}`, true);
     columnVisibility.set('delta', true);
     
-    const table = {
-      'data': this.getTableRows(modelName, fieldName, ds)
-    };
     return html`
       <div class="table-container">
         <lit-data-table
           defaultSortName="delta"
           .defaultSortAscending=${false}
           .columnVisibility=${columnVisibility}
-          .data=${table.data}
+          .data=${rows}
             selectionDisabled
         ></lit-data-table>
       </div>
     `;
-  }
-
-  static shouldDisplayModule(modelSpecs: ModelsMap, datasetSpec: Spec) {
-    return doesOutputSpecContain(modelSpecs, this.supportedPredTypes);
   }
 }
 
