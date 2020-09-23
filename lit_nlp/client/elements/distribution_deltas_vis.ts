@@ -36,7 +36,7 @@ export interface Row {
 }
 
 
-/* README */
+/* README pasting d3 to see how LIT components and interop work */
 @customElement('distribution-delta-vis')
 export class DistributionDeltaVis extends LitElement {
   @property({type: Array}) rows: Row[] = [];
