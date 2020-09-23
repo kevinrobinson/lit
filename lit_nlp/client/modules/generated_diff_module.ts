@@ -18,6 +18,7 @@
 // tslint:disable:no-new-decorators
 import '@material/mwc-icon';
 
+import * as d3 from 'd3';
 import {customElement, html} from 'lit-element';
 import {computed, observable} from 'mobx';
 import {classMap} from 'lit-html/directives/class-map';
@@ -46,6 +47,7 @@ type ScoreReader = (id: string) => number | undefined;
 type DeltaRow = {
   before?: number,
   after?: number,
+  delta?: number,
   d: IndexedInput,
   parent: IndexedInput
 };
@@ -76,6 +78,10 @@ export class GeneratedDiffModule extends LitModule {
     return [sharedStyles, styles];
   }
 
+  private readonly DELTA_COLUMN = 3;
+  private readonly ID_COLUMN = 4;
+  private readonly ABS_DELTA_COLUMN = 5;
+  private readonly PLAIN_TEXT_COLUMN = 6;
   private readonly regressionService = app.getService(RegressionService);
   private readonly classificationService = app.getService(ClassificationService);
 
@@ -107,32 +113,76 @@ export class GeneratedDiffModule extends LitModule {
     });
   }
 
-  /**
-   * Read values from the regression or classification service if they're available,
-     and format them for a table.
-  */
-  private getTableRows(source: Source, scoreReader: ScoreReader, ds: IndexedInput[]) {
-    
+  onSelect(selectedRowIndices: number[]) {
+    const ids = selectedRowIndices
+                    .map(index => this.appState.currentInputData[index]?.id)
+                    .filter(id => id != null);
+    this.selectionService.selectIds(ids);
   }
 
-  private formattedDeltaRows(scoresForRows: DeltaRow[]): any[] {
-    const BLANK = '-';
-    return scoresForRows.map((scores: DeltaRow) => {
-      const {before, after, d, parent}  = scores;
+  onPrimarySelect(index: number) {
+    const id = (index === -1)
+      ? null
+      : this.appState.currentInputData[index]?.id ?? null;
+    this.selectionService.setPrimarySelection(id);
+  }
+
+  private readTableRowsFromService(ds: IndexedInput[], readScore: (id: string) => number | undefined): DeltaRow[] {
+    return ds.flatMap(d => {
+      const parent = this.appState.getCurrentInputDataById(d.meta.parentId);
+      if (parent == null) return [];
+      
+      const before = readScore(parent.id);
+      const after = readScore(d.id);
       const delta = (before != null && after != null)
         ? after - before
-        : null;
-      return [
-        this.formattedSentence(parent.data.sentence, d.data.sentence),
-        before ? formatLabelNumber(before) : BLANK,
-        after ? formatLabelNumber(after) : BLANK,
-        delta ? formatLabelNumber(delta) : BLANK
-      ];
+        : undefined;
+      const deltaRow: DeltaRow = {before, after, delta, d, parent};
+      return [deltaRow];
     });
   }
 
-  private formattedSentence(before: string, after: string) {
-    // Split sentence text naively
+  private formattedDeltaRows(scoresForRows: DeltaRow[]): TableData[] {
+    const BLANK = '-';
+    const meanAbsDelta = d3.mean(scoresForRows.filter(d => d.delta != null), d => {
+      return Math.abs(d.delta!);
+    });
+    return scoresForRows.map((scores: DeltaRow) => {
+      const {before, after, delta, d, parent}  = scores;
+      const row: TableData = [
+        this.formattedSentence(parent.data.sentence, d.data.sentence),
+        before ? formatLabelNumber(before) : BLANK,
+        after ? formatLabelNumber(after) : BLANK,
+        delta ? this.renderDeltaCell(delta, meanAbsDelta) : BLANK, // DELTA_COLUMN
+        d.id, // ID_COLUMN
+        delta ? Math.abs(delta) : 0, // ABS_DELTA_COLUMN
+        d.data.sentence // PLAIN_TEXT_COLUMN
+      ];
+
+      return row;
+    });
+  }
+
+  private renderDeltaCell(delta: number, meanAbsDelta?: number) {
+    /// Styles, because classes won't apply within the table's shadow DOM
+    const opacity = meanAbsDelta ? Math.abs(delta) / meanAbsDelta : 0.5;
+    const styles = styleMap({
+      'font-size': '12px',
+      'opacity': opacity.toFixed(3),
+      'vertical-align': 'middle'
+    });
+    return html`
+      <div>
+        <mwc-icon style=${styles}>
+          ${delta > 0 ? 'arrow_upward' : 'arrow_downward'}
+        </mwc-icon>
+        ${formatLabelNumber(Math.abs(delta))}
+      </div>
+    `;
+  }
+
+  // Split sentence text naively
+  private splitSentences(before: string, after: string) {
     var i = 0;
     while (before[i] === after[i]) {
       i += 1;
@@ -143,31 +193,29 @@ export class GeneratedDiffModule extends LitModule {
     }
     var start = i;
     var end = after.length - j;
+    const pre = after.slice(0, start);
+    const post = after.slice(end);
+    const afterText = after.slice(start, end);
+    const diff = after.length - before.length;
+    const beforeText = before.slice(start, end - diff);
+    return {pre, post, afterText, beforeText};
+  }
 
-    /// Styles, because classes don't make sense within the Table's shadow DOM
+  formattedSentence(before: string, after: string) {
+    const {pre, post, afterText, beforeText} = this.splitSentences(before, after);
+    
+    /// Styles, because classes won't apply within the table's shadow DOM
     const styles = styleMap({
       'padding': '3px',
       'background': '#fbc02d'
     });
     return html`
       <div>
-        ${after.slice(0, start)}
-        <span style=${styles}>${after.slice(start, end)}</span>
-        ${after.slice(end)}
+        ${pre}
+        <span title=${beforeText} style=${styles}>${afterText}</span>
+        ${post}
       </div>
     `;
-  }
-
-  private readTableRowsFromService(ds: IndexedInput[], readScore: (id: string) => number | undefined): DeltaRow[] {
-    return ds.flatMap(d => {
-      const parent = this.appState.getCurrentInputDataById(d.meta.parentId);
-      if (parent == null) return [];
-      
-      const before = readScore(parent.id);
-      const after = readScore(d.id);
-      const deltaRow: DeltaRow = {before, after, d, parent};
-      return [deltaRow];
-    });
   }
 
   getScoreReaders(source: Source): ScoreReader[] {
@@ -236,8 +284,10 @@ export class GeneratedDiffModule extends LitModule {
     return html`
       <div>
         <div class="info">
-          <b class="source">${ds[0].meta.source}</b>
-          generated ${ds.length === 1 ? '1 datapoint' : `${ds.length} datapoints`}
+          <span>
+            <b class="source">${ds[0].meta.source}</b>
+            generated ${ds.length === 1 ? '1 datapoint' : `${ds.length} datapoints`}
+          </span>
           ${this.renderNavigationStrip(generationIndex)}
          </div>
         ${this.renderTables(sources, ds)}
@@ -271,9 +321,12 @@ export class GeneratedDiffModule extends LitModule {
     `;
     const placeholderButton = html`<div class="icon-placeholder"> </div>`;
     return html`
-      <span class="navigation-buttons">
-        ${generationIndex - 1 >= 0 ? previousButton : placeholderButton}
-        ${generationIndex + 1 < this.generations.length ? nextButton : placeholderButton}
+      <span class="navigation-strip">
+        ${generationIndex + 1} of ${this.generations.length} generated sets
+        <span class="navigation-buttons">
+          ${generationIndex - 1 >= 0 ? previousButton : placeholderButton}
+          ${generationIndex + 1 < this.generations.length ? nextButton : placeholderButton}
+        </span>
       </span>
     `;
   }
@@ -284,12 +337,12 @@ export class GeneratedDiffModule extends LitModule {
       return scoreReaders.map(scoreReader => {
         const scoresForRows = this.readTableRowsFromService(ds, scoreReader);
         const rows = this.formattedDeltaRows(scoresForRows);
-        return this.renderTableForDeltas(source, rows);
+        return this.renderTableForDeltas(source, rows, ds);
       });
     });
   }
 
-  renderTableForDeltas(source: Source, rows: any[]) {
+  renderTableForDeltas(source: Source, rows: TableData[], ds: IndexedInput[]) {
     const {fieldName} = source;
 
     const columnVisibility = new Map<string, boolean>();
@@ -297,7 +350,34 @@ export class GeneratedDiffModule extends LitModule {
     columnVisibility.set(`parent ${fieldName}`, true);
     columnVisibility.set(`${fieldName}`, true);
     columnVisibility.set('delta', true);
+    columnVisibility.set('id', false);
+    columnVisibility.set('abs(delta)', false);
+    columnVisibility.set('sentence plain text', false);
     
+    const onSelect = (selectedRowIndices: number[]) => {
+      this.onSelect(selectedRowIndices);
+    };
+    const onPrimarySelect = (index: number) => {
+      this.onPrimarySelect(index);
+    };
+    const getSortValue = (row: TableData, column: number) => {
+      if (column === this.ID_COLUMN) {
+        // sort on text instead of HTML
+        return row[this.PLAIN_TEXT_COLUMN];
+      } else if (column === this.DELTA_COLUMN) {
+        // abs(delta) rather than text
+        return row[this.ABS_DELTA_COLUMN];
+      }
+      return row[column];
+    }
+    const getDataIndexFromRow = (row: TableData) => {
+      const id = row[this.ID_COLUMN];
+      return this.appState.getIndexById(id as string);
+    };
+    const primarySelectedIndex =
+      this.appState.getIndexById(this.selectionService.primarySelectedId);
+
+    // TODO(lit-dev) handle reference selection, if in compare examples mode.
     return html`
       <div class="table-container">
         <lit-data-table
@@ -305,7 +385,12 @@ export class GeneratedDiffModule extends LitModule {
           .defaultSortAscending=${false}
           .columnVisibility=${columnVisibility}
           .data=${rows}
-            selectionDisabled
+          .selectedIndices=${this.selectionService.selectedRowIndices}
+          .primarySelectedIndex=${primarySelectedIndex}
+          .onSelect=${onSelect}
+          .onPrimarySelect=${onPrimarySelect}
+          .getDataIndexFromRow=${getDataIndexFromRow}
+          .getSortValue=${getSortValue}
         ></lit-data-table>
       </div>
     `;
