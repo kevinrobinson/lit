@@ -176,7 +176,6 @@ export class GeneratedDiffModule extends LitModule {
     ds: IndexedInput[], generationIndex: number) {
     return html`
       <div>
-        ${this.renderChart(modelName, fieldName, ds)}
         <div class="info">
           <b class="source">${ds[0].meta.source}</b>
           generated ${ds.length === 1 ? '1 datapoint' : `${ds.length} datapoints`}
