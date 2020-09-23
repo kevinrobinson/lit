@@ -17,7 +17,6 @@
 
 // tslint:disable:no-new-decorators
 import '@material/mwc-icon';
-import '../elements/distribution_deltas_vis';
 
 import {customElement, html} from 'lit-element';
 import {computed, observable} from 'mobx';
@@ -171,26 +170,6 @@ export class GeneratedDiffModule extends LitModule {
         </div>
       `;
      });
-  }
-
-  renderChart(modelName: string, fieldName: string, ds: IndexedInput[]) {
-    // import * as d3 from 'd3';
-    // import {VizColor} from '../lib/colors';
-    const rows = this.getTableRows(modelName, fieldName, ds).map(row => {
-      return {
-        before: row[1],
-        after: row[2],
-        delta: row[3],
-        tooltip: () => html`<div>${row[0]}</div>`
-      };
-    });
-    return html`
-      <div>
-        <h1>distribution-delta-vis</h1>
-        <distribution-delta-vis
-          .rows=${rows}
-        ></distribution-delta-vis>
-    `;
   }
 
   renderGeneration(modelName: string, fieldName: string, key: string,
