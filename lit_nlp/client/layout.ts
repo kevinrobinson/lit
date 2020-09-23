@@ -27,7 +27,6 @@ import {EmbeddingsModule} from './modules/embeddings_module';
 import {GeneratedTextModule} from './modules/generated_text_module';
 import {GeneratorModule} from './modules/generator_module';
 import {LanguageModelPredictionModule} from './modules/lm_prediction_module';
-import {LanguageModelBranchingModule} from './modules/lm_branching_module';
 import {MetricsModule} from './modules/metrics_module';
 import {GeneratedDiffModule} from './modules/generated_diff_module';
 import {PredictionScoreModule} from './modules/prediction_score_module';
@@ -43,7 +42,6 @@ const MODEL_PREDS_MODULES: LitModuleType[] = [
   ClassificationModule,
   RegressionModule,
   LanguageModelPredictionModule,
-  LanguageModelBranchingModule,
   GeneratedTextModule,
 ];
 // clang-format on
@@ -100,9 +98,6 @@ export const LAYOUTS: LitComponentLayouts = {
         LanguageModelPredictionModule,
         ConfusionMatrixModule,
       ],
-      'Probing': [
-        LanguageModelBranchingModule
-       ],
       'Counterfactuals': [GeneratorModule],
     }
   },
