@@ -22,8 +22,7 @@ import * as d3 from 'd3';
 import {customElement, html, svg} from 'lit-element';
 import {computed, observable} from 'mobx';
 import {styleMap} from 'lit-html/directives/style-map';
-// tslint:disable-next-line:ban-module-namespace-object-escape
-const seedrandom = require('seedrandom');  // from //third_party/javascript/typings/seedrandom:bundle
+import hash from 'object-hash';
 
 import {app} from '../core/lit_app';
 import {LitModule} from '../core/lit_module';
@@ -244,8 +243,7 @@ export class PerturbationsJitterStreaks extends LitModule {
     const isReady = (
       (this.isVisReadyForRender[key]) &&
       (this.xScale != null) &&
-      (this.yScale != null) &&
-      (this.jitterForId != null)
+      (this.yScale != null)
     );
     if (!isReady) {
       return null;
@@ -265,7 +263,9 @@ export class PerturbationsJitterStreaks extends LitModule {
       <g>${filtered.map(deltaRow => {
         const dr = (deltaRow as CompleteDeltaRow);
         const x = xScale(dr.after);
-        const y = yScale(this.jitterForId[dr.d.id]);
+        // const y = yScale(this.jitterForId[dr.d.id]);
+        const jitter = (parseInt(hash(dr.d.id), 16) % 1000) / 1000;
+        const y = yScale(jitter);
         const translation = `translate(${x}, ${y})`;
         const color = this.colorService.getDatapointColor(dr.d);
         const radius = 4;
@@ -324,12 +324,11 @@ export class PerturbationsJitterStreaks extends LitModule {
       .attr('height', this.plotHeight);
 
     // initialize jitter for yScale so it's consistent
-    // TODO(lit-dev) could we just hash these?
-    const rngSeed = 'lit';
-    // tslint:disable-next-line:no-any ban-module-namespace-object-escape
-    const rng = seedrandom(rngSeed);
-    this.jitterForId = {};
-    deltas.forEach(delta => this.jitterForId[delta.d.id] = rng())
+    // this.jitterForId = {};
+    // deltas.forEach(delta => {
+    //   const jitter = (parseInt(hash(d.id), 16) % 1000) / 1000;
+    //   this.jitterForId[delta.d.id] = jitter;
+    // });
 
     // define scales
     this.xScale = d3.scaleLinear()
@@ -337,7 +336,7 @@ export class PerturbationsJitterStreaks extends LitModule {
       .range([0, this.plotWidth - this.plotLeftMargin]);
     this.yScale = d3.scaleLinear()
       .domain([0, 1])
-      .range([this.plotHeight - this.plotBottomMargin, 0]);
+      .range([this.plotHeight - this.plotBottomMargin, this.plotBottomMargin]);
 
     // do this imperatively so we can use d3 to make nice axes
     this.makeAxes(el.querySelector('.axes') as SVGElement);
