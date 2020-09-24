@@ -113,18 +113,9 @@ export class DialectsModule extends LitModule {
     this.cityToLocation = buildGeocoder();
   }
 
-  onSelect(selectedRowIndices: number[]) {
-    const ids = selectedRowIndices
-                    .map(index => this.appState.currentInputData[index]?.id)
-                    .filter(id => id != null);
+  onSelect(matches: Match[]) {
+    const ids = matches.map(match => match.d.id);
     this.selectionService.selectIds(ids);
-  }
-
-  onPrimarySelect(index: number) {
-    const id = (index === -1)
-      ? null
-      : this.appState.currentInputData[index]?.id ?? null;
-    this.selectionService.setPrimarySelection(id);
   }
 
   private readTableRowsFromService(ds: IndexedInput[], matches: WordToDialect, readScore: (id: string) => number | undefined): PlainRow[] {
@@ -233,9 +224,11 @@ export class DialectsModule extends LitModule {
     }
     const projection = d3.geoAlbersUsa().scale(1300).translate([487.5, 305]);
     const path = d3.geoPath();
-
+    const onClear = () => {
+      this.onSelect([])
+    };
     return svg`
-      <svg id='svg' viewBox="0 0 975 610" xmlns='http://www.w3.org/2000/svg'>
+      <svg id='svg' viewBox="0 0 975 610" xmlns='http://www.w3.org/2000/svg' @click=${onClear}>
         <g fill="none" stroke="#000" stroke-linejoin="round" stroke-linecap="round">
           <path stroke="#eee" stroke-width="0.5" d="${path(topojson.mesh(us, us.objects.counties, (a, b) => a !== b && (a.id / 1000 | 0) === (b.id / 1000 | 0)))}"></path>
           <path stroke="#999" stroke-width="0.5" d="${path(topojson.mesh(us, us.objects.states, (a, b) => a !== b))}"></path>
@@ -335,14 +328,20 @@ export class DialectsModule extends LitModule {
           }
 
           // format circle
+          const isSelected = matches.every(match => {
+            return this.selectionService.selectedIdsSet.has(match.d.id);
+          });
           const color = this.dialectColor(dialect.dialect);
           const percent = matches.length / this.appState.currentInputData.length;
           const styles = styleMap(this.stylesForDialect(dialect));
+          const textStyles = styleMap({
+            opacity: (isSelected ? 1 : 0)
+          });
           const transform = `translate(${p.join(",")})`;
           return svg`
             <g transform=${transform}>
               <circle class="city" r="5" style=${styles} />
-              <text class="city-text" y="-6">${name}</text>
+              <text class="city-text" y="-6" style=${textStyles}>${name}</text>
             </g>
           `;
         })}
@@ -560,18 +559,35 @@ export class DialectsModule extends LitModule {
       (matches.length > 3) ? ` +${matches.length - 3} more` : ''
     ].join('');
 
-    // const buttonStyles = styleMap({
-    //   'padding-left'
-    // }
     const row: TableData = [
       this.renderDialectWithSwatch(dialect),
       subregionsText,
       wordsText,
       this.renderChart(dialect, matches),
-      matches.length > 0 ? html`<button>${matches.length} datapoints</button` : '-',
+      this.renderSelectButton(matches),
       +matches.length
     ];
     return row;
+  }
+
+  renderSelectButton(matches: Match[]) {
+    if (matches.length === 0) {
+      return '-';
+    }
+
+    const onSelect = () => {
+      this.onSelect(matches)
+    };
+
+
+    const isSelected = matches.every(match => {
+      return this.selectionService.selectedIdsSet.has(match.d.id);
+    });
+    const styles = styleMap({
+      color: (isSelected) ? '#9bb7ba' : 'black'
+    });
+    const text = `${matches.length} ${matches.length === 1 ? 'datapoint' : 'datapoints'}`
+    return html`<button @click=${onSelect} style=${styles}>${text}</button`;
   }
 
   prettyPlace(place: string) {
@@ -633,8 +649,6 @@ export class DialectsModule extends LitModule {
       }
       return row[column];
     }
-    const primarySelectedIndex =
-      this.appState.getIndexById(this.selectionService.primarySelectedId);
 
     // TODO(lit-dev) handle reference selection, if in compare examples mode.
     return html`
@@ -642,6 +656,7 @@ export class DialectsModule extends LitModule {
         <lit-data-table
           defaultSortName="matches.value"
           defaultSortAscending=${false}
+          selectionDisabled=${true}
           .columnVisibility=${columnVisibility}
           .data=${rows}
           .getSortValue=${getSortValue}

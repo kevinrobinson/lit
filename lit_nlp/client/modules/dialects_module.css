@@ -3,6 +3,7 @@
   margin-right: 10px;
   flex: 2;
   text-align: center;
+  cursor: default;
 }
 
 #data {
@@ -34,5 +35,4 @@
   stroke: #333;
   font-size: 20px;
   fill: #333;
-  opacity: 0;
 }
