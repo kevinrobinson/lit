@@ -57,6 +57,13 @@ type CityToLocation = {
   }
 };
 
+interface PlottableCity {
+  name: string,
+  dialect: Dialect,
+  lat: number,
+  lon: number,
+}
+
 type Match = {
   d: IndexedInput,
   word: string
@@ -105,7 +112,7 @@ export class DialectsModule extends LitModule {
 
   @property({type: Object}) wordToDialect: WordToDialect = {};
   @property({type: Object}) cityToLocation: CityToLocation = {};
-  @property({type: Object}) us = null;
+  @property({type: Object}) us?: any = undefined;
 
   constructor() {
     super();
@@ -230,8 +237,8 @@ export class DialectsModule extends LitModule {
     return svg`
       <svg id='svg' viewBox="0 0 975 610" xmlns='http://www.w3.org/2000/svg' @click=${onClear}>
         <g fill="none" stroke="#000" stroke-linejoin="round" stroke-linecap="round">
-          <path stroke="#eee" stroke-width="0.5" d="${path(topojson.mesh(us, us.objects.counties, (a, b) => a !== b && (a.id / 1000 | 0) === (b.id / 1000 | 0)))}"></path>
-          <path stroke="#999" stroke-width="0.5" d="${path(topojson.mesh(us, us.objects.states, (a, b) => a !== b))}"></path>
+          <path stroke="#eee" stroke-width="0.5" d="${path(topojson.mesh(us, us!.objects!.counties, (a, b) => a !== b && (a.id / 1000 | 0) === (b.id / 1000 | 0)))}"></path>
+          <path stroke="#999" stroke-width="0.5" d="${path(topojson.mesh(us, us!.objects!.states, (a, b) => a !== b))}"></path>
           <path stroke="#333" d="${path(topojson.feature(us, us.objects.nation))}"></path>
           ${this.renderCities()}
         </g>
@@ -239,31 +246,16 @@ export class DialectsModule extends LitModule {
     `;
   }
 
-  renderCities() {
-    if (this.cityToLocation === {}) {
-      return;
-    }
-    if (this.plottableCities.length === 0) {
-      return;
-    }
-
-    return svg`
-      <g class="cities">
-        ${this.renderCities()}
-      </g>
-    `;
-  }
-
   @computed
-  get dialectColor() {
+  get dialectColor(): d3.ScaleOrdinal<string, string> {
     const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
     this.plottableCities.map(({dialect}) => colorScale(dialect.dialect));
     return colorScale;
   }
 
   @computed
-  get plottableCities() {
-    const plottableCities = [];
+  get plottableCities(): PlottableCity[] {
+    const plottableCities: PlottableCity[] = [];
     this.dialects.forEach(dialect => {
       const regions = (dialect.subregions || '').toLowerCase().split(',');
       regions.forEach(region => {
@@ -271,12 +263,13 @@ export class DialectsModule extends LitModule {
         if (latLon == null) {
           return;
         }
-        plottableCities.push({
+        const plottableCity: PlottableCity = {
           name: this.prettyPlace(region),
           dialect,
-          lat: latLon.lat,
-          lon: latLon.lon
-        });
+          lat: +latLon.lat,
+          lon: +latLon.lon
+        };
+        plottableCities.push(plottableCity);
       });
     });
 
@@ -286,10 +279,6 @@ export class DialectsModule extends LitModule {
   // for both SVG and HTML
   stylesForDialect(dialect: Dialect) {
     const matches = this.matchesByDialect[dialect.dialect] || [];
-    if (matches.length === 0) {
-      return {};
-    }
-
     const color = this.dialectColor(dialect.dialect);
     const percent = matches.length / this.appState.currentInputData.length;
     return {
@@ -301,6 +290,12 @@ export class DialectsModule extends LitModule {
   }
 
   renderCities() {
+    if (this.cityToLocation === {}) {
+      return;
+    }
+    if (this.plottableCities.length === 0) {
+      return;
+    }
     
     // var coords = []
     // regions.forEach(region => {
@@ -330,13 +325,13 @@ export class DialectsModule extends LitModule {
 
           // format circle
           const isSelected = matches.every(match => {
-            return this.selectionService.selectedIdsSet.has(match.d.id);
+            return this.selectionService.isIdSelected(match.d.id);
           });
           const color = this.dialectColor(dialect.dialect);
           const percent = matches.length / this.appState.currentInputData.length;
           const styles = styleMap(this.stylesForDialect(dialect));
           const textStyles = styleMap({
-            opacity: (isSelected ? 1 : 0)
+            opacity: (isSelected ? 1 : 0).toString()
           });
           const transform = `translate(${p.join(",")})`;
           return svg`
@@ -348,120 +343,7 @@ export class DialectsModule extends LitModule {
         })}
       </g>
     `;
-
-//     // draw points
-//     svg.selectAll("circle")
-//         .data(values[1])
-//         .enter()
-//         .append("circle")
-//         .attr("class","circles")
-//         .attr("cx", function(d) {return projection([d.Longitude, d.Lattitude])[0];})
-//         .attr("cy", function(d) {return projection([d.Longitude, d.Lattitude])[1];})
-//         .attr("r", "1px"),
-// // add labels
-//     svg.selectAll("text")
-//         .data(values[1])
-//         .enter()
-//         .append("text")
-//         .text(function(d) {
-//             return d.City;
-//             })
-//         .attr("x", function(d) {return projection([d.Longitude, d.Lattitude])[0] + 5;})
-//         .attr("y", function(d) {return projection([d.Longitude, d.Lattitude])[1] + 15;})
-//         .attr("class","labels");
   }
-
-  // // super
-  // updated() {
-  //   this.updateMap();
-  // }
-
-  // async updateMap() {
-  //   const el = this.shadowRoot!.querySelector('#map svg');
-
-  //   const us = await d3.json("https://unpkg.com/us-atlas@3/counties-albers-10m.json");
-  //   us.objects.lower48 = {
-  //     type: "GeometryCollection",
-  //     geometries: us.objects.states.geometries.filter(d => d.id !== "02" && d.id !== "15")
-  //   };
-  //   const width = 300;
-  //   const height = 200;
-  //   // projection = d3.geoAlbersUsa().scale(1300).translate([487.5, 305])
-  //   // const projection = d3.geoEqualEarth();
-  //   // const projection = d3.geoAlbersUsa().fitSize([width, height], us.bbox);
-  //   // const projection = d3.geoAlbersUsa().scale(130).translate([-300, -100])
-  //   const projection = d3.geoAlbersUsa().scale(1300).translate([487.5, 305]);
-  //   const path = d3.geoPath().projection(projection);
-
-  //   const svg = d3.select(el)
-  //     .attr('viewBox', '0 0 975 610')
-  //     .attr("width", 975)
-  //     .attr("height", 610);
-  //     // .attr('width', `${width}px`)
-  //     // .attr('height', `${height}px`)
-  //     // .style("width", "100%")
-  //     // .style("height", "100%");
-
-  //   svg.append("path")
-  //       .datum(topojson.merge(us, us.objects.lower48.geometries))
-  //       .attr("fill", "#ddd")
-  //       .attr("d", path);
-
-  //   svg.append("path")
-  //       .datum(topojson.mesh(us, us.objects.lower48, (a, b) => a !== b))
-  //       .attr("fill", "none")
-  //       .attr("stroke", "white")
-  //       .attr("stroke-linejoin", "round")
-  //       .attr("d", path);
-
-    // const g = svg.append("g")
-    //     .attr("fill", "red")
-    //     .attr("stroke", "black");
-
-    // el.appendChild(svg.node());
-
- // svg.append("circle")
- //      .attr("fill", "blue")
- //      .attr("transform", `translate(${data[0]})`)
- //      .attr("r", 3);
-
-
-
-    // topojson = require("topojson-client@3")
-//     const el = this.shadowRoot!.querySelectorAll('#map');
-//     // const map = d3.choropleth()
-//     //   .geofile(geofile)
-//     //   .projection(d3.geoAlbersUsa)
-//     //   .column('2012')
-//     //   .unitId('fips')
-//     //   .scale(1000)
-//     //   .legend(true)
-//    const [width, height] = [300, 200];
-//    const projection = d3.geoEqualEarth();
-//    projection.fitSize([width, height], bb);
-//  5  let geoGenerator = d3.geoPath()
-//  6  .projection(projection);
-//  7
-//  8  let svg = d3.select("body").append('svg')
-//  9  .style("width", width).style("height", height);
-// 10
-// 11  svg.append('g').selectAll('path')
-// 12  .data(bb.features)
-// 13  .join('path')
-// 14  .attr('d', geoGenerator)
-// 15  .attr('fill', '#088')
-// 16  .attr('stroke', '#000');
-
-//     const csv = `,State,1998,1999,2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,fips
-// 0,Alabama,0.77,0.59,2.3,0.67,0.46,0.23,0.27,0.13,0.12,0.19,0.14,0.26,0.0,0.02,0.13,US01
-// 1,Alaska,0.0,0.0,0.14,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,US02
-// 2,Arizona,1.51,2.14,0.21,1.16,1.11,0.39,0.51,0.06,1.1,0.78,0.8,0.44,0.34,0.89,0.83,US04
-// 3,Arkansas,0.11,0.39,9.15,0.15,0.13,0.01,0.04,1.39,0.42,0.0,0.0,0.0,0.05,0.0,0.05,US05
-// 4,California,7.14,19.14,32.61,12.46,6.87,5.86,5.95,6.52,6.99,7.88,7.51,5.06,5.95,7.92,7.08,US06`;
-//     d3.csv.parse('/data/venture-capital.csv').then(data => {
-//       map.draw(d3.select(el).datum(data));
-//     });
-  // }
 
   render() {
     // Fan out by each (model, outputKey, fieldName)
@@ -514,8 +396,8 @@ export class DialectsModule extends LitModule {
     return Object.values(this.dialectsByName);
   }
 
-  @computed get matchesByDialect():{[dialect: string]: Match} {
-    const matchesByDialect:{[dialect: string]: IndexedInput[]} = {};
+  @computed get matchesByDialect():{[dialect: string]: Match[]} {
+    const matchesByDialect:{[dialect: string]: Match[]} = {};
     const matches:{[id: string]: Dialect} = {};
     var ds: IndexedInput[] = [];
     const relevant = this.appState.currentInputData.filter((d: IndexedInput) => {
@@ -566,7 +448,7 @@ export class DialectsModule extends LitModule {
     return row;
   }
 
-  renderWords(words: string) {
+  renderWords(words: string[]) {
     const uniques = Array.from(new Set(words));
     const wordsText = [
       uniques.slice(0, 3).join(', '),
@@ -586,9 +468,8 @@ export class DialectsModule extends LitModule {
       this.onSelect(matches)
     };
 
-
     const isSelected = matches.every(match => {
-      return this.selectionService.selectedIdsSet.has(match.d.id);
+      return this.selectionService.isIdSelected(match.d.id);
     });
     const styles = styleMap({
       color: (isSelected) ? '#9bb7ba' : 'black'

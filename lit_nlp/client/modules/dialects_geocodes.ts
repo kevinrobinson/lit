@@ -310,14 +310,16 @@ const csv = `SNo-NOT-UNIQUE,City,State,Location
 7,Enterprise,Nevada,?36.0182øN 115.2154øW
 8,Brandon,Florida,?27.9360øN 82.2993øW`;
 
+
+// TODO(lit-dev) move to the server, get better data
 export function buildGeocoder() {
   const map = {};
   const rows = d3.csvParse(csv);
   rows.forEach(row => {
-    const key = row['City'].toLowerCase();
+    const key = row['City']!.toLowerCase();
 
     // whack formatting
-    const [lat, lon] = row['Location'].slice(1).split(' ');
+    const [lat, lon] = row['Location']!.slice(1).split(' ');
     const latBits = lat.split('ø');
     const lonBits = lon.split('ø');
     map[key] = {

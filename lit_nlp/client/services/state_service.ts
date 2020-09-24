@@ -226,7 +226,7 @@ export class AppState extends LitService implements StateObservedByUrlService {
    */
   async createNewDatapoints(
       data: Input[][], parentIds: string[],
-      source: string, rule: string): Promise<IndexedInput[]> {
+      source: string, rule?: string): Promise<IndexedInput[]> {
     // Tag all datapoints created as a group.
     const creationId = uuidv4();
 
