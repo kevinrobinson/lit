@@ -33,7 +33,7 @@ import {GroupService} from '../services/group_service';
 import {RegressionService, ClassificationService, SliceService} from '../services/services';
 import {RegressionInfo} from '../services/regression_service';
 
-import {styles} from './generated_diff_module.css';
+import {styles} from './perturbations_review_module.css';
 import {styles as sharedStyles} from './shared_styles.css';
 
 type Source = {
@@ -56,12 +56,12 @@ type DeltaRow = {
  * Module to sort generated countefactuals by the change in prediction for a
  regression or multiclass classification model.
  */
-@customElement('generated-diff')
-export class GeneratedDiffModule extends LitModule {
-  static title = 'Counterfactual Changes';
-  static numCols = 6;
+@customElement('perturbations-review-module')
+export class PerturbationsReviewModule extends LitModule {
+  static title = 'Perturbations Impact';
+  static numCols = 8;
   static template = () => {
-    return html`<generated-diff ></generated-diff>`;
+    return html`<perturbations-review-module></perturbations-review-module>`;
   };
 
   static shouldDisplayModule(modelSpecs: ModelsMap, datasetSpec: Spec) {
@@ -78,10 +78,10 @@ export class GeneratedDiffModule extends LitModule {
     return [sharedStyles, styles];
   }
 
-  private readonly DELTA_COLUMN = 3;
-  private readonly ID_COLUMN = 4;
-  private readonly ABS_DELTA_COLUMN = 5;
-  private readonly PLAIN_TEXT_COLUMN = 6;
+  private readonly DELTA_COLUMN = 4;
+  private readonly ID_COLUMN = 5;
+  private readonly ABS_DELTA_COLUMN = 6;
+  private readonly PLAIN_TEXT_COLUMN = 7;
   private readonly regressionService = app.getService(RegressionService);
   private readonly classificationService = app.getService(ClassificationService);
 
@@ -151,6 +151,7 @@ export class GeneratedDiffModule extends LitModule {
       const {before, after, delta, d, parent}  = scores;
       const row: TableData = [
         this.formattedSentence(parent.data.sentence, d.data.sentence),
+        d.meta.rule ? d.meta.rule : d.meta.source,
         before ? formatLabelNumber(before) : BLANK,
         after ? formatLabelNumber(after) : BLANK,
         delta ? this.renderDeltaCell(delta, meanAbsDelta) : BLANK, // DELTA_COLUMN
@@ -271,67 +272,21 @@ export class GeneratedDiffModule extends LitModule {
        });
     });
 
-    return html`
-      <div>
-        ${this.generations.map(({generationKey, ds}, index) => {
-          return this.renderGeneration(sources, generationKey, ds, index);
-        })}
-      </div>
-    `;
-  }
-
-  renderGeneration(sources: Source[], key: string, ds: IndexedInput[], generationIndex: number) {
+    const ds = this.generatedDataPoints;
     return html`
       <div>
         <div class="info">
           <span>
-            <b class="source">${ds[0].meta.source}</b>
-            generated ${ds.length === 1 ? '1 datapoint' : `${ds.length} datapoints`}
+            Generated ${ds.length === 1 ? '1 datapoint' : `${ds.length} datapoints`}
+            from ${this.generations.length === 1 ? '1 perturbation' : `${this.generations.length} perturbations`}
           </span>
-          ${this.renderNavigationStrip(generationIndex)}
          </div>
-        ${this.renderTables(sources, ds)}
+        ${this.renderTable(sources, ds)}
       </div>
     `;
   }
 
-  renderNavigationStrip(generationIndex: number) {
-    const onChangeOffset = (delta: number) => {
-      const infos = this.shadowRoot!.querySelectorAll('.info');
-      const nextIndex = generationIndex + delta;
-      if (nextIndex < infos.length && nextIndex >= 0) {
-        infos[nextIndex].scrollIntoView();
-       }
-    };
-    if (this.generations.length === 1) {
-      return null;
-    }
-
-    const previousButton = html`
-      <mwc-icon class='icon-button'
-        @click=${() => {onChangeOffset(-1);}}>
-        chevron_left
-      </mwc-icon>
-    `;
-    const nextButton = html`
-      <mwc-icon class='icon-button'
-        @click=${() => {onChangeOffset(1);}}>
-        chevron_right
-      </mwc-icon>
-    `;
-    const placeholderButton = html`<div class="icon-placeholder"> </div>`;
-    return html`
-      <span class="navigation-strip">
-        ${generationIndex + 1} of ${this.generations.length} generated sets
-        <span class="navigation-buttons">
-          ${generationIndex - 1 >= 0 ? previousButton : placeholderButton}
-          ${generationIndex + 1 < this.generations.length ? nextButton : placeholderButton}
-        </span>
-      </span>
-    `;
-  }
-
-  renderTables(sources: Source[], ds: IndexedInput[]) {
+  renderTable(sources: Source[], ds: IndexedInput[]) {
     return sources.flatMap(source => {
       const scoreReaders = this.getScoreReaders(source);
       return scoreReaders.map(scoreReader => {
@@ -347,6 +302,7 @@ export class GeneratedDiffModule extends LitModule {
 
     const columnVisibility = new Map<string, boolean>();
     columnVisibility.set('generated sentence', true);
+    columnVisibility.set(`source`, true);
     columnVisibility.set(`parent ${fieldName}`, true);
     columnVisibility.set(`${fieldName}`, true);
     columnVisibility.set('delta', true);
@@ -399,6 +355,6 @@ export class GeneratedDiffModule extends LitModule {
 
 declare global {
   interface HTMLElementTagNameMap {
-    'generated-diff': GeneratedDiffModule;
+    'perturbations-review-module': PerturbationsReviewModule;
   }
 }

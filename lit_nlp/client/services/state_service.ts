@@ -226,7 +226,7 @@ export class AppState extends LitService implements StateObservedByUrlService {
    */
   async createNewDatapoints(
       data: Input[][], parentIds: string[],
-      source: string): Promise<IndexedInput[]> {
+      source: string, rule: string): Promise<IndexedInput[]> {
     // Tag all datapoints created as a group.
     const creationId = uuidv4();
 
@@ -241,6 +241,7 @@ export class AppState extends LitService implements StateObservedByUrlService {
           'meta': {
             'parentId': parentIds[i],
             'source': source,
+            'rule': rule,
             'creationId': creationId,
             'added': 1,
             'isFavorited': false

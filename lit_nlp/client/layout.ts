@@ -31,6 +31,8 @@ import {VariationModule} from './modules/variation_module';
 import {DialectsModule} from './modules/dialects_module';
 import {MetricsModule} from './modules/metrics_module';
 import {GeneratedDiffModule} from './modules/generated_diff_module';
+import {PerturbationsReviewModule} from './modules/perturbations_review_module';
+import {PerturbationsJitterStreaks} from './modules/perturbations_jitter_streaks';
 import {PredictionScoreModule} from './modules/prediction_score_module';
 import {RegressionModule} from './modules/regression_module';
 import {SalienceMapModule} from './modules/salience_map_module';
@@ -141,7 +143,11 @@ export const LAYOUTS: LitComponentLayouts = {
       ],
       'Counterfactuals': [GeneratorModule],
       'Counterfactual Explanation': [CounterfactualExplainerModule],
-      'Counterfactual Changes': [GeneratedDiffModule],
+      'Counterfactual Changes': [
+        // GeneratedDiffModule,
+        PerturbationsJitterStreaks,
+        PerturbationsReviewModule
+      ],
       'Variation': [
         // VariationModule,
         DialectsModule

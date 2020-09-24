@@ -318,7 +318,8 @@ export class DialectsModule extends LitModule {
           const {lat, lon, dialect, name} = plottableCity;
           const p = projection([lon, lat]);
           if (p == null) {
-            console.log('projection', lon, lat, p);
+            // TODO(lit-dev) this is a real data problem
+            // console.log('projection', lon, lat, p);
             return null;
           }
 
