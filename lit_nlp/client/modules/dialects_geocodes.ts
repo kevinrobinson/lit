@@ -311,19 +311,19 @@ const csv = `SNo-NOT-UNIQUE,City,State,Location
 8,Brandon,Florida,?27.9360øN 82.2993øW`;
 
 export function buildGeocoder() {
-	const map = {};
-	const rows = d3.csvParse(csv);
-	rows.forEach(row => {
-		const key = row['City'].toLowerCase()];
+  const map = {};
+  const rows = d3.csvParse(csv);
+  rows.forEach(row => {
+    const key = row['City'].toLowerCase();
 
-		// whack formatting
-		const [lat, lon] = row['Location'].slice(1).split(' ');
-		const latBits = lat.split('ø');
-		const lonBits = lon.split('ø');
-		map[key] = {
-			lat: +latBits[0] * (latBits[1] === 'S' ? -1 : 1),
-			lon: +lonBits[0] * (lonBits[1] === 'W' ? -1 : 1)
-		};
-	});
-	return map;
+    // whack formatting
+    const [lat, lon] = row['Location'].slice(1).split(' ');
+    const latBits = lat.split('ø');
+    const lonBits = lon.split('ø');
+    map[key] = {
+      lat: +latBits[0] * (latBits[1] === 'S' ? -1 : 1),
+      lon: +lonBits[0] * (lonBits[1] === 'W' ? -1 : 1)
+    };
+  });
+  return map;
 }

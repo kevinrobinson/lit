@@ -28,7 +28,6 @@ const seedrandom = require('seedrandom');  // from //third_party/javascript/typi
 import {app} from '../core/lit_app';
 import {LitModule} from '../core/lit_module';
 import {TableData} from '../elements/table';
-import {JitterChart} from '../elements/jitter';
 import {CallConfig, FacetMap, GroupedExamples, IndexedInput, LitName, ModelsMap, Spec} from '../lib/types';
 import {doesOutputSpecContain, formatLabelNumber, findSpecKeys} from '../lib/utils';
 import {GroupService} from '../services/group_service';
@@ -38,7 +37,7 @@ import {RegressionInfo} from '../services/regression_service';
 import {styles} from './perturbations_jitter_streaks.css';
 import {styles as sharedStyles} from './shared_styles.css';
 
-type Source = {
+interface Source {
   modelName: string,
   specKey: LitName,
   fieldName: string
@@ -46,10 +45,18 @@ type Source = {
 
 type ScoreReader = (id: string) => number | undefined;
 
-type DeltaRow = {
+interface DeltaRow {
   before?: number,
   after?: number,
   delta?: number,
+  d: IndexedInput,
+  parent: IndexedInput
+};
+
+interface CompleteDeltaRow {
+  before: number,
+  after: number,
+  delta: number,
   d: IndexedInput,
   parent: IndexedInput
 };
@@ -84,22 +91,27 @@ export class PerturbationsJitterStreaks extends LitModule {
   private readonly regressionService = app.getService(RegressionService);
   private readonly classificationService = app.getService(ClassificationService);
 
-  /* This is the flag controlling whether the vis has been created imperatively, and
-   * whether the render pass can add in data.in
-   */
-  @observable private isVisReadyForRender = {[key: string]: boolean};
+  /* Tunings for vis margins, etc. */
+  private readonly maxPlotWidth = 900;
+  private readonly minPlotHeight = 100;
+  private readonly maxPlotHeight = 250;  // too sparse if taller than this
+  private readonly plotBottomMargin = 35;
+  private readonly plotLeftMargin = 5;
+  private readonly xLabelOffsetY = 30;
+  private readonly yLabelOffsetX = -32;
+  private readonly yLabelOffsetY = -25;
+  private plotHeight?: number = undefined;
+  private plotWidth?: number = undefined;
 
-  constructor() {
-    super();
-    this.maxPlotWidth = 900;
-    this.minPlotHeight = 100;
-    this.maxPlotHeight = 250;  // too sparse if taller than this
-    this.plotBottomMargin = 35;
-    this.plotLeftMargin = 5;
-    this.xLabelOffsetY = 30;
-    this.yLabelOffsetX = -32;
-    this.yLabelOffsetY = -25;
-  }
+  private xScale?: d3.AxisScale<number> = undefined;
+  private yScale?: d3.AxisScale<number> = undefined;
+  private jitterForId:{[id: string]: number} = {};
+
+  /* This controls whether each vis has been created imperatively, and
+   * whether the render pass should render data or not.
+   */
+  @observable private isVisReadyForRender: {[sourceKey: string]: boolean} = {};
+
 
   /* TODO(lit-dev) factor out */
   @computed
@@ -229,7 +241,13 @@ export class PerturbationsJitterStreaks extends LitModule {
   renderVisSubstance(source, deltaRows) {
     // Some of the vis is built imperatively, so wait until that's done.
     const key = JSON.stringify(source);
-    if (!this.isVisReadyForRender[key]) {
+    const isReady = (
+      (this.isVisReadyForRender[key]) &&
+      (this.xScale != null) &&
+      (this.yScale != null) &&
+      (this.jitterForId != null)
+    );
+    if (!isReady) {
       return null;
     }
 
@@ -241,10 +259,13 @@ export class PerturbationsJitterStreaks extends LitModule {
       return true;
     });
 
+    const xScale = this.xScale! as d3.AxisScale<number>;
+    const yScale = this.yScale! as d3.AxisScale<number>;
     return svg`
-      <g>${filtered.map(dr => {
-        const x = this.xScale(dr.after);
-        const y = this.yScale(this.randos[dr.d.id]);
+      <g>${filtered.map(deltaRow => {
+        const dr = (deltaRow as CompleteDeltaRow);
+        const x = xScale(dr.after);
+        const y = yScale(this.jitterForId[dr.d.id]);
         const translation = `translate(${x}, ${y})`;
         const color = this.colorService.getDatapointColor(dr.d);
         const radius = 4;
@@ -253,13 +274,14 @@ export class PerturbationsJitterStreaks extends LitModule {
           dr.delta > 0 ? 'up to' : 'down to',
           dr.after.toFixed(3)
         ].join(' ');
+        const deltaPixels = xScale(dr.delta)!;
         return svg`
           <g class="point" transform=${translation}>
             <rect
               class="smear"
-              x=${radius + (dr.delta > 0 ? this.xScale(dr.delta) : 0)}
+              x=${radius + (dr.delta > 0 ? deltaPixels : 0)}
               y="-1"
-              width=${Math.abs(this.xScale(dr.delta)) - radius}
+              width=${Math.abs(deltaPixels) - radius}
               height="2"
               fill=${color}
               opacity=${0.25}
@@ -292,7 +314,7 @@ export class PerturbationsJitterStreaks extends LitModule {
     if (!div) {
       return;
     }
-    const el = div.querySelector('svg');
+    const el = div.querySelector('svg') as SVGElement;
 
     // size
     this.plotWidth = div.clientWidth - this.plotLeftMargin * 2;
@@ -302,11 +324,12 @@ export class PerturbationsJitterStreaks extends LitModule {
       .attr('height', this.plotHeight);
 
     // initialize jitter for yScale so it's consistent
+    // TODO(lit-dev) could we just hash these?
     const rngSeed = 'lit';
     // tslint:disable-next-line:no-any ban-module-namespace-object-escape
     const rng = seedrandom(rngSeed);
-    this.randos = {};
-    deltas.forEach(delta => this.randos[delta.d.id] = rng())
+    this.jitterForId = {};
+    deltas.forEach(delta => this.jitterForId[delta.d.id] = rng())
 
     // define scales
     this.xScale = d3.scaleLinear()
@@ -317,7 +340,7 @@ export class PerturbationsJitterStreaks extends LitModule {
       .range([this.plotHeight - this.plotBottomMargin, 0]);
 
     // do this imperatively so we can use d3 to make nice axes
-    this.makeAxes(el.querySelector('.axes'));
+    this.makeAxes(el.querySelector('.axes') as SVGElement);
 
     // tell UI we're ready for a proper LitElement render
     this.isVisReadyForRender[key] = true;
@@ -328,12 +351,12 @@ export class PerturbationsJitterStreaks extends LitModule {
       .attr('id', 'xAxis')
       .attr('transform', `translate(
         ${this.plotLeftMargin}, 
-        ${this.plotHeight - this.plotBottomMargin}
+        ${this.plotHeight! - this.plotBottomMargin}
       )`)
-      .call(d3.axisBottom(this.xScale));
+      .call(d3.axisBottom(this.xScale!));
 
     // TODO(lit-dev) update ticks based on type of data available; see predictions module
-    const axisGenerator = d3.axisLeft(this.yScale);
+    const axisGenerator = d3.axisLeft(this.yScale!);
     axisGenerator.ticks(0);
     d3.select(el).append('g')
       .attr('id', 'yAxis')
