@@ -228,18 +228,6 @@ export class VariationModule extends LitModule {
     return this.renderGeneration(sources, ds, matches, dialectsFound);
   }
 
-  // updated() {
-  //   const el = this.shadowRoot!.querySelector('#map');
-  //   const L = window.L;
-  //   var map = L.map(el).setView([51.505, -0.09], 13);
-
-  //   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  //       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  //   }).addTo(map);
-  //   L.marker([51.5, -0.09]);
-  // }
-          // <div id="map">map...</div>
-
   renderGeneration(sources: Source[], ds: IndexedInput[], matches: WordToDialect, dialectsFound: string[]) {
     const dialectsMap = {};
     Object.values(this.wordToDialect).forEach(dialect => dialectsMap[dialect.dialect] = true);
