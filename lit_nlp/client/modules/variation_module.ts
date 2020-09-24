@@ -67,7 +67,7 @@ type PlainRow = {
  */
 @customElement('variation-module')
 export class VariationModule extends LitModule {
-  static title = 'Variation';
+  static title = 'Regional Variation';
   static numCols = 8;
   static template = () => {
     return html`<variation-module ></variation-module>`;
@@ -228,16 +228,32 @@ export class VariationModule extends LitModule {
     return this.renderGeneration(sources, ds, matches, dialectsFound);
   }
 
+  // updated() {
+  //   const el = this.shadowRoot!.querySelector('#map');
+  //   const L = window.L;
+  //   var map = L.map(el).setView([51.505, -0.09], 13);
+
+  //   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  //       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  //   }).addTo(map);
+  //   L.marker([51.5, -0.09]);
+  // }
+          // <div id="map">map...</div>
+
   renderGeneration(sources: Source[], ds: IndexedInput[], matches: WordToDialect, dialectsFound: string[]) {
     const dialectsMap = {};
     Object.values(this.wordToDialect).forEach(dialect => dialectsMap[dialect.dialect] = true);
-    const percentText = Math.round(100 * dialectsFound.length / Object.keys(dialectsMap).length);
+    const percent = dialectsFound.length / Object.keys(dialectsMap).length;
+    const styles = styleMap({
+      color: 'darkorange',
+      opacity: (1 - percent).toFixed(3)
+    });
     return html`
       <div>
         <div class="info">
           <span>
             <b class="source">Regional variation:</b>
-            Possible matches for ${percentText}% of dialects,
+            Possible matches for <b style=${styles}>${Math.round(100 * percent)}% of dialects</b>,
             in ${ds.length === 1 ? '1 datapoint' : `${ds.length} datapoints`}
           </span>
           <span>
@@ -323,7 +339,7 @@ export class VariationModule extends LitModule {
     return html`
       <div class="table-container">
         <lit-data-table
-          defaultSortName="delta"
+          defaultSortName=${fieldName}
           .defaultSortAscending=${false}
           .columnVisibility=${columnVisibility}
           .data=${rows}
