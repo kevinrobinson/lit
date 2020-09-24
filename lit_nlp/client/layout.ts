@@ -28,6 +28,7 @@ import {GeneratedTextModule} from './modules/generated_text_module';
 import {GeneratorModule} from './modules/generator_module';
 import {LanguageModelPredictionModule} from './modules/lm_prediction_module';
 import {VariationModule} from './modules/variation_module';
+import {DialectsModule} from './modules/dialects_module';
 import {MetricsModule} from './modules/metrics_module';
 import {GeneratedDiffModule} from './modules/generated_diff_module';
 import {PredictionScoreModule} from './modules/prediction_score_module';
@@ -141,7 +142,10 @@ export const LAYOUTS: LitComponentLayouts = {
       'Counterfactuals': [GeneratorModule],
       'Counterfactual Explanation': [CounterfactualExplainerModule],
       'Counterfactual Changes': [GeneratedDiffModule],
-      'Variation': [VariationModule]
+      'Variation': [
+        // VariationModule,
+        DialectsModule
+      ]
     }
   },
 };

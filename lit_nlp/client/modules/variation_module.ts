@@ -68,7 +68,7 @@ type PlainRow = {
 @customElement('variation-module')
 export class VariationModule extends LitModule {
   static title = 'Regional Variation';
-  static numCols = 8;
+  static numCols = 4;
   static template = () => {
     return html`<variation-module ></variation-module>`;
   };

@@ -1,0 +1,38 @@
+#map {
+  border-right: 1px solid #eee;
+  margin-right: 10px;
+  flex: 2;
+  text-align: center;
+}
+
+#data {
+  flex: 4;
+}
+
+#layout {
+  display: flex;
+  flex-direction: row;
+}
+
+.info {
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #3c4043;
+}
+
+
+.city {
+  stroke: #fbc02d;
+  fill: #fbc02d;
+  opacity: 0.8;
+}
+
+.city-text {
+  stroke-width: 1px;
+  stroke: #333;
+  font-size: 20px;
+  fill: #333;
+  opacity: 0;
+}

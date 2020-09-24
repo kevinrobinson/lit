@@ -119,6 +119,12 @@ export class DataTable extends ReactiveElement {
     this.reactImmediately(() => this.rowFilteredData, filteredData => {
       this.stickySortedData = null;
     });
+
+
+    // TODO not sure why this isn't working...
+    this.requestUpdate();
+    console.log('this.sortName', this.sortName);
+    console.log('this.sortAscending', this.sortAscending);
   }
 
   // tslint:disable-next-line:no-any
