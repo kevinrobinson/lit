@@ -554,20 +554,26 @@ export class DialectsModule extends LitModule {
       (subregionNames.length > 3) ? ` +${subregionNames.length - 3} more` : ''
     ].join('');
 
-    const wordsText = [
-      matches.map(match => match.word).slice(0, 3).join(', '),
-      (matches.length > 3) ? ` +${matches.length - 3} more` : ''
-    ].join('');
-
     const row: TableData = [
       this.renderDialectWithSwatch(dialect),
       subregionsText,
-      wordsText,
+      this.renderWords(matches.map(match => match.word)),
       this.renderChart(dialect, matches),
       this.renderSelectButton(matches),
       +matches.length
     ];
     return row;
+  }
+
+  renderWords(words: string) {
+    const uniques = Array.from(new Set(words));
+    const wordsText = [
+      uniques.slice(0, 3).join(', '),
+      (uniques.length > 3) ? ` +${uniques.length - 3} more` : ''
+    ].join('');
+    const moreWordsText = (uniques.length > 3) ? `+${uniques.slice(3).join(', ')}` : null;
+
+    return html`<span title=${moreWordsText}>${wordsText}</span>`;
   }
 
   renderSelectButton(matches: Match[]) {
@@ -623,10 +629,12 @@ export class DialectsModule extends LitModule {
       display: 'inline-block',
       'margin-right': '5px'
     });
+    const roundedPercent = Math.round(100 * percent);
+    const percentText = (roundedPercent === 0 && matches.length !== 0) ? '<1' : roundedPercent;
     return html`
       <div>
         <div style=${styles}> </div>
-        <span>${percent > 0 ? html`${Math.round(100 * percent)}%` : '-'}</span>
+        <span>${percent > 0 ? html`${percentText}%` : '-'}</span>
       </div>
     `;
   }
@@ -637,8 +645,8 @@ export class DialectsModule extends LitModule {
     const columnVisibility = new Map<string, boolean>();
     columnVisibility.set('dialect', true);
     columnVisibility.set('subregions', true);
-    columnVisibility.set('words', true);
-    columnVisibility.set('prevalance', true);
+    columnVisibility.set('words found', true);
+    columnVisibility.set('% of examples', true);
     columnVisibility.set('matches', true);
     columnVisibility.set('matches.value', false);
     
