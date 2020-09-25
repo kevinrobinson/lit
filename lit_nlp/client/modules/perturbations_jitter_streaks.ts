@@ -263,9 +263,9 @@ export class PerturbationsJitterStreaks extends LitModule {
       <g>${filtered.map(deltaRow => {
         const dr = (deltaRow as CompleteDeltaRow);
         const x = xScale(dr.after);
-        // const y = yScale(this.jitterForId[dr.d.id]);
         const jitter = (parseInt(hash(dr.d.id), 16) % 1000) / 1000;
-        const y = yScale(jitter);
+        // const y = yScale(jitter);
+        const y = yScale(Math.abs(dr.delta));
         const translation = `translate(${x}, ${y})`;
         const color = this.colorService.getDatapointColor(dr.d);
         const radius = 4;
@@ -334,8 +334,8 @@ export class PerturbationsJitterStreaks extends LitModule {
     this.xScale = d3.scaleLinear()
       .domain([0, 1])
       .range([0, this.plotWidth - this.plotLeftMargin]);
-    this.yScale = d3.scaleLinear()
-      .domain([0, 1])
+    this.yScale = d3.scaleLog()
+      .domain([0.00001, 1])
       .range([this.plotHeight - this.plotBottomMargin, this.plotBottomMargin]);
 
     // do this imperatively so we can use d3 to make nice axes

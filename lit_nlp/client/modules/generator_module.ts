@@ -342,6 +342,18 @@ export class GeneratorModule extends LitModule {
         </div>`;
       // clang-format on
     };
+    const disabilityLanguageReplacer = (generator: string) => {
+      const onClick = () => {
+        this.handleGeneratorClick(generator);
+      };
+
+      // clang-format off
+      return html`
+        <div class='generator-control'>
+          <button @click=${onClick}>${generator}</button>
+        </div>`;
+      // clang-format on
+    }
     // clang-format off
     return html`
         <div id="generators">
@@ -352,6 +364,8 @@ export class GeneratorModule extends LitModule {
       }
       if (generator === 'word_replacer') {
         return wordReplacer(generator);
+      } else if (generator === 'disability_language') {
+        return disabilityLanguageReplacer(generator);
       } else {
         return genericGenerator(generator);
       }

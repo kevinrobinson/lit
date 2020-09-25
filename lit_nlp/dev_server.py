@@ -97,6 +97,8 @@ class Server(object):
       # Add any dependencies you want to reload here, as:
       #   from lit_nlp.components import foobar
       #   importlib.reload(foobar)
+      from lit_nlp.components import disability_language
+      importlib.reload(disability_language)
       from lit_nlp.components import projection
       importlib.reload(projection)
       from lit_nlp.components import pca
