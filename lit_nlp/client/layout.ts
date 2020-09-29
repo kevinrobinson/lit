@@ -102,6 +102,9 @@ export const LAYOUTS: LitComponentLayouts = {
         LanguageModelPredictionModule,
         ConfusionMatrixModule,
       ],
+      'Explanations': [
+        AttentionModule
+      ],
       'Counterfactuals': [GeneratorModule],
     }
   },

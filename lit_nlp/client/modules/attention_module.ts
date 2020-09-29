@@ -22,6 +22,7 @@
 // tslint:disable:no-new-decorators
 import {customElement, html, property, svg} from 'lit-element';
 import {observable, reaction} from 'mobx';
+import {styleMap} from 'lit-html/directives/style-map';
 
 import {app} from '../core/lit_app';
 import {LitModule} from '../core/lit_module';
@@ -79,21 +80,74 @@ export class AttentionModule extends LitModule {
 
   render() {
     if (this.preds) {
+      // <div>
+      //   ${this.renderAttnHeadDropdown()}
+      //   ${this.renderIdxDropdown()}
+      // </div>
       return html`
-      <div>
-        ${this.renderAttnHeadDropdown()}
-        ${this.renderIdxDropdown()}
-      </div>
-        ${this.renderAttnHead()}
+        ${this.renderVisual()}
       `;
     }
     // If the input was cleared (so there is no data to show), hide everything
     return null;
   }
 
-  private renderAttnHead() {
+  private renderVisual() {
+    const styles = styleMap({
+      'display': 'flex',
+      'flex-direction': 'row'
+    });
+
     const outputSpec = this.appState.currentModelSpecs[this.model].spec.output;
-    const align = outputSpec[this.selectedLayer!].align as [string, string];
+    const attnKeys = findSpecKeys(outputSpec, 'AttentionHeads');
+    if (attnKeys.length === 0) {
+      return html `<div>No AttentionHeads found.</div>`;
+    }
+
+    const numHeadsPerLayer = this.preds![attnKeys[0]].length;
+    const headIndexes = Array.from(Array(numHeadsPerLayer).keys());
+    return html`
+      <div style=${styles}>
+        ${headIndexes.map(headIndex => this.renderHeadAcrossLayers(headIndex))};
+      }
+      </div>
+    `;
+    // const heads = this.preds![this.selectedLayer!] as AttentionHeads;
+  }
+
+  private renderHeadAcrossLayers(headIndex: number) {
+    // ${Object.keys(this.preds!).map(predKey => this.renderAttnHeadForLayer(predKey))}
+    const styles = styleMap({
+      'display': 'flex',
+      'flex-direction': 'column'
+    });
+
+    // TODO(lit-dev) weak assumption on ordering
+    const predKeys = Object.keys(this.preds!);
+    return html`
+      <div>
+        <h2>head: ${headIndex}</h2>
+        <div style=${styles}>
+          ${predKeys.map(predKey => this.renderAttnHeadForLayer(predKey, headIndex))}
+        </div>
+      </div>
+    `;
+    // const heads = this.preds![predKey!] as AttentionHeads;
+    // return html`<pre>${JSON.stringify(heads, null, 2)}</pre>`;
+  }
+
+  private renderAttnHeadForLayer(predKey: string, headIndex: number) {
+    const outputSpec = this.appState.currentModelSpecs[this.model].spec.output;
+    // const attnKeys = findSpecKeys(outputSpec, 'AttentionHeads');
+    const fieldSpec = outputSpec[predKey];
+    if (!fieldSpec) {
+      return html`<div>No AttentionHeads in the model's output spec</div>`;
+    }
+    const heads = this.preds![predKey!] as AttentionHeads;
+    const align = fieldSpec!.align as [string, string];
+    if (!align) {
+      return null;
+    }
 
     // Tokens involved in the attention.
     const inToks = (this.preds!)[align[0]] as Tokens;
@@ -102,7 +156,7 @@ export class AttentionModule extends LitModule {
     const inTokLens = inToks.map(tok => tok.length + 1);
     const outTokLens = outToks.map(tok => tok.length + 1);
 
-    const inTokStr = svg`${inToks.join(' ')}`;
+    const inTokStr = svg`out:${inToks.join(' ')}`;
     const outTokStr = svg`${outToks.join(' ')}`;
 
     // Character width is constant as this is a fixed width font.
@@ -120,25 +174,39 @@ export class AttentionModule extends LitModule {
         Math.max(sumArray(inTokLens), sumArray(outTokLens)) * charWidth;
     const height = visHeight + fontSize * 2 + pad * 4;
 
+    const container = styleMap({
+      'position': 'relative'
+    });
+    const overlay = styleMap({
+      'position': 'absolute',
+      'top': '0',
+      'opacity': '0'
+    });
     // clang-format off
-    return svg`
-    <svg width=${width} height=${height}
-      font-family="'Share Tech Mono', monospace"
-      font-size="${fontSize}px">
-      <text y=${pad * 2}> ${outTokStr}</text>
-      ${this.renderAttnLines(visHeight, charWidth, 2.5 * pad, inTokLens, outTokLens)}
-      <text y=${visHeight + 4 * pad}> ${inTokStr}</text>
-    </svg>
+    return html`
+      <div style=${container}>
+        <div style=${overlay}>${predKey}</div>
+        <svg width=${200} height=${20} viewBox="0 30 1000 100"
+          font-family="'Share Tech Mono', monospace"
+          font-size="${fontSize}px">
+          <text y=${pad * 2}> ${outTokStr}</text>
+          ${this.renderAttnLines(heads, headIndex, visHeight, charWidth, 2.5 * pad, inTokLens, outTokLens)}
+          <text y=${visHeight + 4 * pad}> ${inTokStr}</text>
+        </svg>
+      </div>
     `;
     // clang-format on
   }
+
+
 
   /**
    * Render the actual lines between tokens to show the attention values.
    */
   private renderAttnLines(
-      visHeight: number, charWidth: number, pad: number, inTokLens: number[],
-      outTokLens: number[]) {
+      heads: AttentionHeads, headIndex: number,
+      visHeight: number, charWidth: number, pad: number,
+      inTokLens: number[], outTokLens: number[]) {
     const cumSumInTokLens = cumSumArray(inTokLens);
     const cumSumOutTokLens = cumSumArray(outTokLens);
     const y1 = pad;
@@ -149,10 +217,9 @@ export class AttentionModule extends LitModule {
     const xOut = (i: number) =>
         (cumSumOutTokLens[i] - outTokLens[i] / 2) * charWidth;
 
-    const heads = this.preds![this.selectedLayer!] as AttentionHeads;
-
+    
     // clang-format off
-    return heads[this.selectedHeadIndex].map(
+    return heads[headIndex].map(
         (attnVals: number[], i: number) => {
           return svg`
             ${attnVals.map((attnVal: number, j: number) => {

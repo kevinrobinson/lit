@@ -25,15 +25,15 @@ from lit_nlp.examples.datasets import classification
 from lit_nlp.examples.datasets import glue
 from lit_nlp.examples.datasets import lm
 from lit_nlp.examples.models import pretrained_lms
-from lit_nlp.examples.models import glu
+from lit_nlp.examples.models import glue_models
 
 # NOTE: additional flags defined in server_flags.py
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_list(
-    "models", ["bert-base-uncased"],
-    "Models to load. Currently supports variants of BERT and GPT-2.")
+# flags.DEFINE_list(
+#     "models", ["bert-base-uncased"],
+#     "Models to load. Currently supports variants of BERT and GPT-2.")
 
 flags.DEFINE_integer("top_k", 10,
                      "Rank to which the output distribution is pruned.")
@@ -47,16 +47,17 @@ flags.DEFINE_bool(
     "load_bwb", False,
     "If true, will load examples from the Billion Word Benchmark dataset. This may download a lot of data the first time you run it, so disable by default for the quick-start example."
 )
+flags.DEFINE_string("model_path", None, "Path to save trained model.")
 
 # Set default layout to one better suited to language models.
 # You can also change this via URL param e.g. localhost:5432/?layout=default
-FLAGS.set_default("default_layout", "lm")
+# FLAGS.set_default("default_layout", "lm")
 
 
 def main(_):
 
   ##
-  # Load models, according to the --models flag.
+  # Load models
   model_path = FLAGS.model_path or tempfile.mkdtemp()
   models = {
     'sst-classifier': glue_models.SST2Model(model_path),
@@ -82,6 +83,7 @@ def main(_):
   #     )
 
   datasets = {
+      "sst_dev_sentence": glue.SST2Data("validation"),
       # Single sentences from movie reviews (SST dev set).
       "sst_dev": glue.SST2Data("validation").remap({"sentence": "text"}),
       # Longer passages from movie reviews (IMDB dataset, test split).
