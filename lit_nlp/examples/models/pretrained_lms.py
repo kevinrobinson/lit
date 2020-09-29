@@ -24,6 +24,10 @@ class BertMLM(lit_model.Model):
   MASK_TOKEN = "[MASK]"
 
   @property
+  def num_layers(self):
+    return self.model.config.num_hidden_layers
+  
+  @property
   def max_seq_length(self):
     return self.model.config.max_position_embeddings
 
@@ -72,9 +76,9 @@ class BertMLM(lit_model.Model):
     output["pred_tokens"] = self._get_topk_tokens(probas[slicer])
     # Trim down to only the mask positions, to avoid sending a huge amount
     # of data.
-    for i, token in enumerate(output["tokens"]):
-      if token != self.MASK_TOKEN:
-        output["pred_tokens"][i] = []
+    # for i, token in enumerate(output["tokens"]):
+    #   if token != self.MASK_TOKEN:
+    #     output["pred_tokens"][i] = []
 
     return output
 
@@ -87,6 +91,10 @@ class BertMLM(lit_model.Model):
 
   def predict_minibatch(self, inputs, config=None):
     """Predict on a single minibatch of examples."""
+    # head_mask = [](for ex in inputs)
+    # num_heads = 12
+    # head_mask = tf.fill([self.num_layers, num_heads], 1)
+
     # If input has a 'tokens' field, use that. Otherwise tokenize the text.
     tokenized_texts = [
         ex.get("tokens") or self.tokenizer.tokenize(ex["text"]) for ex in inputs
@@ -115,15 +123,22 @@ class BertMLM(lit_model.Model):
     #    <float32>[batch_size, num_tokens, h_dim]
     # attentions is a list of num_layers tensors, each
     #    <float32>[batch_size, num_heads, num_tokens, num_tokens]
-    logits, embs, unused_attentions = self.model(encoded_input)
+    logits, embs, unused_attentions = self.model(encoded_input) #, head_mask=head_mask)
     batched_outputs = {
         "probas": tf.nn.softmax(logits, axis=-1).numpy(),
         "input_ids": encoded_input["input_ids"].numpy(),
         "ntok": tf.reduce_sum(encoded_input["attention_mask"], axis=1).numpy(),
         "cls_emb": embs[-1][:, 0].numpy(),  # last layer, first token
     }
+    
+    # unroll attention for each layer
+    for index, attention in enumerate(unused_attentions):
+      key = "layer_{}_attention".format(index)
+      batched_outputs[key] = attention.numpy()
+
     # List of dicts, one per example.
     unbatched_outputs = utils.unbatch_preds(batched_outputs)
+
     # Postprocess to remove padding and decode predictions.
     return map(self._postprocess, unbatched_outputs)
 
@@ -134,11 +149,49 @@ class BertMLM(lit_model.Model):
     }
 
   def output_spec(self):
-    return {
+    spec = {
         "tokens": lit_types.Tokens(parent="text"),
         "pred_tokens": lit_types.TokenTopKPreds(align="tokens"),
         "cls_emb": lit_types.Embeddings(),
     }
+
+    for i in range(self.num_layers):
+      spec[f"layer_{i:d}_attention"] = lit_types.AttentionHeads(
+          align=("tokens", "tokens"))
+
+    return spec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 class GPT2LanguageModel(lit_model.Model):

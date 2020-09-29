@@ -97,6 +97,8 @@ class Server(object):
       # Add any dependencies you want to reload here, as:
       #   from lit_nlp.components import foobar
       #   importlib.reload(foobar)
+      from lit_nlp.examples.models import pretrained_lms
+      importlib.reload(pretrained_lms)
       from lit_nlp.components import projection
       importlib.reload(projection)
       from lit_nlp.components import pca

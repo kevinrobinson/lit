@@ -79,6 +79,7 @@ export class AttentionModule extends LitModule {
   }
 
   render() {
+    // return null;
     if (this.preds) {
       // <div>
       //   ${this.renderAttnHeadDropdown()}
@@ -182,13 +183,18 @@ export class AttentionModule extends LitModule {
       'top': '0',
       'opacity': '0'
     });
+
+    const onClick = () => {
+      console.log(headIndex, predKey, JSON.stringify(heads[headIndex], null, 2));
+    }
     // clang-format off
     return html`
       <div style=${container}>
         <div style=${overlay}>${predKey}</div>
         <svg width=${200} height=${20} viewBox="0 30 1000 100"
           font-family="'Share Tech Mono', monospace"
-          font-size="${fontSize}px">
+          font-size="${fontSize}px"
+          @click=${onClick}>
           <text y=${pad * 2}> ${outTokStr}</text>
           ${this.renderAttnLines(heads, headIndex, visHeight, charWidth, 2.5 * pad, inTokLens, outTokLens)}
           <text y=${visHeight + 4 * pad}> ${inTokStr}</text>
