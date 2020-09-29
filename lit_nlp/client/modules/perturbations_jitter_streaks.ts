@@ -95,10 +95,7 @@ export class PerturbationsJitterStreaks extends LitModule {
   private readonly minPlotHeight = 100;
   private readonly maxPlotHeight = 250;  // too sparse if taller than this
   private readonly plotBottomMargin = 35;
-  private readonly plotLeftMargin = 5;
-  private readonly xLabelOffsetY = 30;
-  private readonly yLabelOffsetX = -32;
-  private readonly yLabelOffsetY = -25;
+  private readonly plotLeftMargin = 25;
   private plotHeight?: number = undefined;
   private plotWidth?: number = undefined;
 
@@ -259,13 +256,16 @@ export class PerturbationsJitterStreaks extends LitModule {
 
     const xScale = this.xScale! as d3.AxisScale<number>;
     const yScale = this.yScale! as d3.AxisScale<number>;
+    const opacityScale = d3.scaleLinear()
+      .domain([0, 1])
+      .range([0.2, 0.8]);
     return svg`
       <g>${filtered.map(deltaRow => {
         const dr = (deltaRow as CompleteDeltaRow);
         const x = xScale(dr.after);
         const jitter = (parseInt(hash(dr.d.id), 16) % 1000) / 1000;
         // const y = yScale(jitter);
-        const y = yScale(Math.abs(dr.delta));
+        const y = yScale(dr.delta);
         const translation = `translate(${x}, ${y})`;
         const color = this.colorService.getDatapointColor(dr.d);
         const radius = 4;
@@ -275,6 +275,7 @@ export class PerturbationsJitterStreaks extends LitModule {
           dr.after.toFixed(3)
         ].join(' ');
         const deltaPixels = xScale(dr.delta)!;
+        const opacity = 0.25; // opacityScale(Math.abs(dr.delta));
         return svg`
           <g class="point" transform=${translation}>
             <rect
@@ -284,13 +285,13 @@ export class PerturbationsJitterStreaks extends LitModule {
               width=${Math.abs(deltaPixels) - radius}
               height="2"
               fill=${color}
-              opacity=${0.25}
+              opacity=${0}
             />
             <circle
               class="circle-after"
               r=${radius}
               fill=${color}
-              opacity="0.25"
+              opacity=${opacity}
             >
               <title>${titleText}</title>
             </circle>
@@ -333,9 +334,9 @@ export class PerturbationsJitterStreaks extends LitModule {
     // define scales
     this.xScale = d3.scaleLinear()
       .domain([0, 1])
-      .range([0, this.plotWidth - this.plotLeftMargin]);
-    this.yScale = d3.scaleLog()
-      .domain([0.00001, 1])
+      .range([this.plotLeftMargin, this.plotWidth - this.plotLeftMargin*2]);
+    this.yScale = d3.scaleLinear()
+      .domain([-1, 1])
       .range([this.plotHeight - this.plotBottomMargin, this.plotBottomMargin]);
 
     // do this imperatively so we can use d3 to make nice axes
@@ -349,18 +350,25 @@ export class PerturbationsJitterStreaks extends LitModule {
     d3.select(el).append('g')
       .attr('id', 'xAxis')
       .attr('transform', `translate(
-        ${this.plotLeftMargin}, 
+        0, 
         ${this.plotHeight! - this.plotBottomMargin}
       )`)
       .call(d3.axisBottom(this.xScale!));
 
     // TODO(lit-dev) update ticks based on type of data available; see predictions module
-    const axisGenerator = d3.axisLeft(this.yScale!);
-    axisGenerator.ticks(0);
+    const yAxisGenerator = d3.axisLeft(this.yScale!);
+    yAxisGenerator.ticks(4);
     d3.select(el).append('g')
       .attr('id', 'yAxis')
-      .attr('transform', `translate(${this.plotLeftMargin}, 0}`)
-      .call(axisGenerator);
+      .attr('transform', `translate(${this.plotLeftMargin}, 0)`)
+      .call(yAxisGenerator);
+
+    // const xAxisGenerator = d3.axisLeft(this.xScale!);
+    // xAxisGenerator.ticks(4);
+    // d3.select(el).append('g')
+    //   .attr('id', 'xAxis')
+    //   .attr('transform', `translate(${this.plotLeftMargin}, ${this.plotBottomMargin}`)
+    //   .call(xAxisGenerator);
   }
 }
 
