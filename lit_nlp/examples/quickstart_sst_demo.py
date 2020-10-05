@@ -45,7 +45,7 @@ def run_finetuning(train_path):
 def main(_):
   model_path = FLAGS.model_path or tempfile.mkdtemp()
   logging.info("Working directory: %s", model_path)
-  run_finetuning(model_path)
+  # run_finetuning(model_path)
 
   # Load our trained model.
   models = {"sst": glue_models.SST2Model(model_path)}

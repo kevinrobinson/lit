@@ -51,9 +51,12 @@ interface CompleteDeltaRow {
   parent: IndexedInput
 };
 
+interface Dims {
+  width: number;
+  height: number;
+}
+
 interface ChartSizing {
-  clientWidth: number;
-  clientHeight: number;
   margins: {
     top: number;
     bottom: number;
@@ -151,7 +154,7 @@ export class PerturbationsChartModule extends LitModule {
   // @observable private clientWidth?: number = undefined;
   // @observable private manuallyReadClientWidth?: number = undefined;
   // @observable private manuallyReadClientHeight?: number = undefined;
-  @observable private sizing?: ChartSizing = undefined;
+  @observable private dims?: Dims = undefined;
   private resizeObserver!: ResizeObserver;
 
   // private xScale?: d3.AxisScale<number> = undefined;
@@ -164,21 +167,7 @@ export class PerturbationsChartModule extends LitModule {
   // @observable private isVisReadyForRender: {[sourceKey: string]: boolean} = {};
 
   // statically configurable
-  setSizing(): void {
-    console.log('setSizing');
-    // read
-    const divs = this.shadowRoot!.querySelectorAll('.container');
-    if (divs.length === 0) {
-      return;
-    }
-    const div = divs[0];
-    const el = div.querySelector('.svg-container')!;
-    if (!el) {
-      return;
-    }
-    const clientWidth = div.clientWidth;
-    const clientHeight = el.clientHeight;
-
+  private sizing(dims: Dims): ChartSizing {
     // config
     const maxPlotHeight = 350;  // avoid the chart being too sparse vertically
     const margins = {
@@ -189,8 +178,8 @@ export class PerturbationsChartModule extends LitModule {
     };
 
     // size
-    const plotWidth = clientWidth;
-    const plotHeight = Math.min(clientHeight, maxPlotHeight);
+    const plotWidth = dims.width;
+    const plotHeight = Math.min(dims.height, maxPlotHeight);
 
     // define scales
     const {yDomain} = this.visConfig;
@@ -200,17 +189,14 @@ export class PerturbationsChartModule extends LitModule {
     const yScale = d3.scaleLinear()
       .domain(yDomain)
       .range([plotHeight - margins.bottom, margins.top]);
-    // console.log('xScale', xScale.domain(), xScale.range());
-    const sizing = {
+
+    return {
       plotWidth,
       plotHeight,
       xScale,
       yScale,
-      clientWidth,
-      clientHeight,
-      margins}
-    ;
-    this.sizing = sizing;
+      margins
+    };
   }
 
 
@@ -261,33 +247,33 @@ export class PerturbationsChartModule extends LitModule {
   //   this.react(() => this.selectedVisualizationKey, () => this.doUpdate());
   // }
 
-  firstUpdated() {
-    // TODO(lit-dev) What we want...
-    // this.reactImmediately(() => [this.clientWidth, this.clientHeight], () => {
-    //   console.log('> react');
-    //   this.requestUpdate();
-    // });
+  setDimensionsIfNecessary() {
+    // console.log('setDimensionsIfNecessary');
+    const dims = this.readDimensions();
+    if (dims && (!this.dims || this.dims.width !== dims.width || this.dims.height !== dims.height)) {
+      // console.log('  SET DIMENSIONS');
+      this.dims = dims;
+    }
+  }
 
-    console.log('> firstUpdated');
-    // // TODO(lit-dev) this is doing per-component, but we really want the actual root
-    // // ie, is this for all sources, or just one source?
+  firstUpdated() {
+    // TODO(lit-dev) this is doing per-component, but we really want the actual root
+    // ie, is this for all sources, or just one source?
     const root = this.shadowRoot!.getElementById('root')!;
     this.resizeObserver = new ResizeObserver(() => {
-      // console.log('> resize'););
-      this.setSizing();
-      // this.requestUpdate();
+      // console.log('> resize');
+      this.setDimensionsIfNecessary();
     });
     this.resizeObserver.observe(root);
-    this.setSizing();
   }
 
   updated() {
-    console.log('> updated');
+    // console.log('> updated', this.dims);
     this.doUpdate();
   }
 
   doUpdate() {
-    // this.setSizing();
+    this.setDimensionsIfNecessary();
     return this.deltasService.sourcesForModel(this.model).map((source, index) => {
       const deltaRows = this.filteredDeltasRowsForSource(source);
       this.updateVis(source, index, deltaRows);
@@ -295,7 +281,7 @@ export class PerturbationsChartModule extends LitModule {
   }
 
   render() {
-    console.log('> render', this.sizing);
+    // console.log('> render', this.dims);
     return html`<div id="root">${this.renderContent()}`;
 
   }
@@ -368,15 +354,21 @@ export class PerturbationsChartModule extends LitModule {
 
 
   private renderChart(source: Source, deltas: DeltaRow[]) {
-    if (!this.sizing) {
-      return null;
+    if (!this.dims) {
+      // console.log('  no dims...');
+      return;
     }
-    const {plotWidth, plotHeight} = this.sizing!;
+    const sizing = this.sizing(this.dims);
     return svg`
-      <svg class='svg' xmlns='http://www.w3.org/2000/svg' width=${plotWidth} height=${plotHeight}>
-        ${this.renderSizingRect(this.sizing)}
+      <svg
+        class='svg'
+        xmlns='http://www.w3.org/2000/svg'
+        width=${sizing.plotWidth}
+        height=${sizing.plotHeight}
+      >
+        ${this.renderSizingRect(sizing)}
         <g class="axes" />
-        ${this.renderVisSubstance(source, deltas, this.sizing)}
+        ${this.renderVisSubstance(source, deltas, sizing)}
       </svg>
     `;
   }
@@ -436,7 +428,7 @@ export class PerturbationsChartModule extends LitModule {
 
   private renderVisSubstance(source: Source, deltaRows: DeltaRow[], sizing: ChartSizing) {
     // return;
-    // console.log('renderVisSubstance', this.sizing);
+    // console.log('renderVisSubstance', this.dims);
     // Some of the vis is built imperatively, so wait until that's done.
     // const key = JSON.stringify(source);
     // if (!this.isVisReadyForRender[key]) {
@@ -495,50 +487,54 @@ export class PerturbationsChartModule extends LitModule {
   }
 
 
-  // setSizing() {
-  //   const divs = this.shadowRoot!.querySelectorAll('.container');
-  //   if (divs.length === 0) {
-  //     return;
-  //   }
-  //   const div = divs[0];
-  //   const el = div.querySelector('svg') as SVGElement;
-  //   const width = div.clientWidth;
-  //   const height = el.clientHeight;
+  readDimensions(): Dims | undefined {
+    const divs = this.shadowRoot!.querySelectorAll('.container');
+    if (divs.length === 0) {
+      // console.log('  no divs');
+      return undefined;
+    }
+    const div = divs[0];
+    const el = div.querySelector('.svg-container') as SVGElement;
+    if (!el) {
+      // console.log('  no svg');
+      return undefined;
+    }
+    const width = div.clientWidth;
+    const height = el.clientHeight;
 
-  //   const {plotHeight, plotWidth} = this.sizing;
-  //   if (height > 0 && width > 0 && (plotWidth !== width)) {
-  //     this.manuallyReadClientWidth = width;
-  //     this.manuallyReadClientHeight = height;
-  //     // console.log('setSizing', this.sizing);
-  //   }
-  // }
+    // console.log('  READ DIMENSIONS');
+    // const {plotHeight, plotWidth} = this.sizing;
+    // if (height > 0 && width > 0 && (plotWidth !== width)) {
+    // console.log('setSizing', this.dims);
+    // this.dims = {width, height};
+    return {width, height};
+  }
 
   // Build some of the vis iteratively so that we can use some nice d3
   // functions (eg, axes, brushing).
   updateVis(source: Source, sourceIndex: number, deltas: DeltaRow[]) {
-    // console.log('updateVis', this.sizing);
-    const divs = this.shadowRoot!.querySelectorAll('.container');
-    const div = Array.from(divs).find(el => {
-      return (el as HTMLElement).dataset['sourceIndex'] === sourceIndex.toString();
-    });
-    if (!div) {
+    if (!this.dims) {
+      return;
+    }
+    const el = this.shadowRoot!.querySelector(`.container[data-source-index='${sourceIndex}'] svg`) as SVGElement;
+     if (!el) {
       return;
     }
 
     // do this imperatively so we can use d3 to make nice axes
-    const el = div.querySelector('svg') as SVGElement;
-    if (el) {
-      this.updateAxes(el.querySelector('.axes') as SVGElement);
-    }
-
+    // console.log('updateAxes', this.dims);
+    const axesEl = el.querySelector('.axes') as SVGElement;
+    const sizing = this.sizing(this.dims);
+    this.updateAxes(axesEl, sizing);
     // tell UI we're ready for a proper LitElement render
     // const key = JSON.stringify(source);
     // this.isVisReadyForRender[key] = true;
   }
 
-  updateAxes(el: SVGElement) {
+  updateAxes(el: SVGElement, sizing: ChartSizing) {
     const {yTicks} = this.visConfig;
-    const {plotHeight, xScale, yScale, margins} = this.sizing!;
+    const {plotHeight, xScale, yScale, margins} = sizing;
+
     d3.select(el).html('');
     d3.select(el).append('g')
       .attr('id', 'xAxis')
