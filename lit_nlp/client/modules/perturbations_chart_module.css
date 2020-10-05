@@ -1,14 +1,27 @@
-.root {
+#root {
+  height: 100%;
+}
+
+.container {
   height: 100%;
   display: flex;
   flex-direction: column;
 }
 
+.info {
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #3c4043;
+}
+
 .controls-holder {
   display: flex;
-  flex-flow: row wrap;
+  flex-direction: row;
   margin-bottom: 10px;
-  justify-content: space-between;
+  justify-content: flex-start;
+  align-items: center;
 }
 
 .dropdown {
@@ -17,4 +30,8 @@
 
 .dropdown-holder {
   padding: 0 8px;
+}
+
+.svg-container {
+  flex: 1;
 }
