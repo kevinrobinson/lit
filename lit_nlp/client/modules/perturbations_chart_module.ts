@@ -100,6 +100,22 @@ const SCATTERPLOT_VISUALIZATION_OPTION: VisualizationConfig = {
   includeStreaks: true,
   yValueToProject: dr => dr.delta
 }
+
+interface GroupingConfig {
+  key: string;
+  text: string;
+}
+
+const NO_GROUPING_OPTION: GroupingConfig = {
+  key: 'none',
+  text: 'none'
+};
+
+const PERTURBATION_GROUPING_OPTION: GroupingConfig = {
+  key: 'perturbation',
+  text: 'perturbation'
+};
+
 /**
  * Module to sort generated countefactuals by the change in prediction for a
  regression or multiclass classification model.
@@ -126,9 +142,9 @@ export class PerturbationsChartModule extends LitModule {
   }
 
   /* UI description */
-  private readonly GROUPING_OPTIONS = [
-    { name: 'none' },
-    { name: 'perturbation' }
+  private readonly GROUPING_OPTIONS: GroupingConfig[] = [
+    NO_GROUPING_OPTION,
+    PERTURBATION_GROUPING_OPTION
   ];
   private readonly VISUALIZATION_OPTIONS: VisualizationConfig[] = [
     // STREAKS_VISUALIZATION_OPTION,
@@ -140,7 +156,7 @@ export class PerturbationsChartModule extends LitModule {
 
   // TODO(lit-dev) factor out selection to deltaService[this.model]
   @observable private lastSelectedSourceIndex?: number;
-  @observable private selectedGroupingIndex = 0;
+  @observable private selectedGroupingKey = this.GROUPING_OPTIONS[0].key;
   @observable private selectedVisualizationKey = this.VISUALIZATION_OPTIONS[0].key;
   @observable private brushed?: Brushed;
   /* Tunings for vis margins, etc. */
@@ -236,24 +252,7 @@ export class PerturbationsChartModule extends LitModule {
   //     : deltaRows;
   // }
 
-  // TODO(lit-dev) factor out this selection state to DeltasService, so 
-  // components are synced.  filtering too!  keyed by `modelName`
-  // no filtering...
-  private filteredDeltasRowsForSource(source: Source) {
-    const {generationKeys, deltaRows} = this.deltasService.deltaInfoFromSource(source);
-    return deltaRows;
-    // const filteredDeltaRows = this.filteredDeltaRows(deltaRows);
-    // const deltaRowsById: DeltaRowsById = {};
-    // deltaRows.forEach(deltaRow => deltaRowsById[deltaRow.d.id] = deltaRow);
-    // return filteredDeltaRows;
-  }
-
   
-  // TODO(lit-dev) why axis ticks not changing?
-  // firstUpdate() {
-  //   this.react(() => this.selectedVisualizationKey, () => this.doUpdate());
-  // }
-
   setDimensionsIfNecessary() {
     // console.log('setDimensionsIfNecessary');
     const dims = this.readDimensions();
@@ -282,7 +281,7 @@ export class PerturbationsChartModule extends LitModule {
   doUpdate() {
     this.setDimensionsIfNecessary();
     return this.deltasService.sourcesForModel(this.model).map((source, index) => {
-      const deltaRows = this.filteredDeltasRowsForSource(source);
+      const {deltaRows} = this.deltasService.deltaInfoFromSource(source);
       this.updateVis(source, index, deltaRows);
     });
   }
@@ -303,7 +302,7 @@ export class PerturbationsChartModule extends LitModule {
      * each (model, outputKey, fieldName).
      */
     return this.deltasService.sourcesForModel(this.model).map((source, index) => {
-      const deltaRows = this.filteredDeltasRowsForSource(source);
+      const {deltaRows} = this.deltasService.deltaInfoFromSource(source);
       return this.renderForSource(source, index, deltaRows);
     });
   }
@@ -327,7 +326,7 @@ export class PerturbationsChartModule extends LitModule {
 
   private renderControls() {
     const onGroupingChange = (e: Event) => {
-      this.selectedGroupingIndex = +((e.target as HTMLSelectElement).value);
+      this.selectedGroupingKey = (e.target as HTMLSelectElement).value;
     };
     const onVisualizationChange = (e: Event) => {
       this.selectedVisualizationKey = (e.target as HTMLSelectElement).value;
@@ -340,9 +339,9 @@ export class PerturbationsChartModule extends LitModule {
         <div class="dropdown-holder">
           <label class="dropdown-label">Facet by</label>
           <select class="dropdown" @change=${onGroupingChange}>
-            ${this.GROUPING_OPTIONS.map((option, i) => html`
-              <option ?selected=${this.selectedGroupingIndex === i} value=${i}>
-                ${option.name}
+            ${this.GROUPING_OPTIONS.map(option => html`
+              <option ?selected=${this.selectedGroupingKey === option.key} value=${option.key}>
+                ${option.text}
               </option>`)}
           </select>
         </div>
@@ -583,7 +582,7 @@ export class PerturbationsChartModule extends LitModule {
     const {xScale, yScale} = this.sizing(this.dims!);
     const boundsX = [selectionEvent[0][0], selectionEvent[1][0]];
     const boundsY = [selectionEvent[0][1], selectionEvent[1][1]];
-    const deltaRows = this.filteredDeltasRowsForSource(source);
+    const {deltaRows} = this.deltasService.deltaInfoFromSource(source);
     const {yValueToProject} = this.visConfig;
     return deltaRows.flatMap(deltaRow => {
       const dr = (deltaRow as CompleteDeltaRow);
