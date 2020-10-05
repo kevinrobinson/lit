@@ -325,22 +325,24 @@ export class PerturbationsChartModule extends LitModule {
   }
 
   private renderControls() {
-    const onGroupingChange = (e: Event) => {
-      this.selectedGroupingKey = (e.target as HTMLSelectElement).value;
+    const onFacetingChange = (e: Event) => {
+      this.selectedGroupingKey = {
+        [PERTURBATION_GROUPING_OPTION.key]: NO_GROUPING_OPTION.key,
+        [NO_GROUPING_OPTION.key]: PERTURBATION_GROUPING_OPTION.key
+      }[this.selectedGroupingKey];
     };
+
     const onVisualizationChange = (e: Event) => {
       this.selectedVisualizationKey = (e.target as HTMLSelectElement).value;
     };
     return html`
       <div class="controls-holder">
         <div class="dropdown-holder">
-          <label class="dropdown-label">Facet by</label>
-          <select class="dropdown" @change=${onGroupingChange}>
-            ${this.GROUPING_OPTIONS.map(option => html`
-              <option ?selected=${this.selectedGroupingKey === option.key} value=${option.key}>
-                ${option.text}
-              </option>`)}
-          </select>
+          <lit-checkbox
+            label="Facet by perturbation"
+            ?checked=${this.selectedGroupingKey === PERTURBATION_GROUPING_OPTION.key}
+            @change=${onFacetingChange}
+          ></lit-checkbox>
         </div>
       </div>
     `;
