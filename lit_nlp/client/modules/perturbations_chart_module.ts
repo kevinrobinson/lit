@@ -39,6 +39,10 @@ import {DeltaRow, DeltaInfo, Source} from '../services/deltas_service';
 import {styles} from './perturbations_chart_module.css';
 import {styles as sharedStyles} from './shared_styles.css';
 
+
+// TODO(lit-dev)
+import './pc';
+
 // type DeltaRowsById = {
 //   [id: string]: DeltaRow
 // };
@@ -115,6 +119,8 @@ const PERTURBATION_GROUPING_OPTION: GroupingConfig = {
   key: 'perturbation',
   text: 'perturbation'
 };
+
+type GroupingFunction = (dr: DeltaRow) => string;
 
 /**
  * Module to sort generated countefactuals by the change in prediction for a
@@ -253,39 +259,6 @@ export class PerturbationsChartModule extends LitModule {
   // }
 
   
-  setDimensionsIfNecessary() {
-    // console.log('setDimensionsIfNecessary');
-    const dims = this.readDimensions();
-    if (dims && (!this.dims || this.dims.width !== dims.width || this.dims.height !== dims.height)) {
-      // console.log('  SET DIMENSIONS');
-      this.dims = dims;
-    }
-  }
-
-  firstUpdated() {
-    // TODO(lit-dev) this is doing per-component, but we really want the actual root
-    // ie, is this for all sources, or just one source?
-    const root = this.shadowRoot!.getElementById('root')!;
-    this.resizeObserver = new ResizeObserver(() => {
-      // console.log('> resize');
-      this.setDimensionsIfNecessary();
-    });
-    this.resizeObserver.observe(root);
-  }
-
-  updated() {
-    // console.log('> updated', this.dims);
-    this.doUpdate();
-  }
-
-  doUpdate() {
-    this.setDimensionsIfNecessary();
-    return this.deltasService.sourcesForModel(this.model).map((source, index) => {
-      const {deltaRows} = this.deltasService.deltaInfoFromSource(source);
-      this.updateVis(source, index, deltaRows);
-    });
-  }
-
   render() {
     // console.log('> render', this.dims);
     return html`<div id="root">${this.renderContent()}`;
@@ -302,9 +275,22 @@ export class PerturbationsChartModule extends LitModule {
      * each (model, outputKey, fieldName).
      */
     return this.deltasService.sourcesForModel(this.model).map((source, index) => {
-      const {deltaRows} = this.deltasService.deltaInfoFromSource(source);
-      return this.renderForSource(source, index, deltaRows);
+      return html`
+        ${this.renderControls()}
+        <div class="chart-or-charts">
+          ${this.renderChartOrStackedCharts(source, index)}
+        </div>
+      `;
     });
+  }
+
+  private renderChartOrStackedCharts(source: Source, sourceIndex: number) {
+    const deltaInfo = this.deltasService.deltaInfoFromSource(source);
+    const {generationKeys, deltaRowsByGeneration, allDeltaRows} = deltaInfo;
+    console.log('generationKeys', generationKeys);
+    return (this.selectedGroupingKey === PERTURBATION_GROUPING_OPTION.key)
+      ? generationKeys.map(key => this.renderForSource(source, sourceIndex, deltaRowsByGeneration[key]))
+      : this.renderForSource(source, sourceIndex, allDeltaRows);
   }
 
   // TODO(lit-dev) navigation UI
@@ -314,12 +300,26 @@ export class PerturbationsChartModule extends LitModule {
       'hidden': (sourceIndex !== (this.lastSelectedSourceIndex ?? 0)),
       [sourceIndex]: true
     });
+
+    const isIdPrimary = (id: string) => this.selectionService.primarySelectedId === id;
+    const isIdSelected = (id: string) => this.selectionService.isIdSelected(id);
+    const getDatapointColor = (d: IndexedInput) => this.colorService.getDatapointColor(d);
+    const onIdsSelected = (ids: string[]) => this.selectionService.selectIds(ids);
+    // TODO(lit-dev) moving reads of values into functions breaks the observability;
+    // doing that means the child component doesn't re-render in response to changes in
+    // selection.
     return html`
       <div class=${classes} data-source-index=${sourceIndex}>
-        ${this.renderControls()}
-        <div class="svg-container">
-          ${this.renderChart(source, deltaRows)}
-        </div>
+        <lit-perturbations-chart
+          class="chart"
+          .visConfig=${this.visConfig}
+          .source=${source}
+          .deltaRows=${deltaRows}
+          .isIdPrimary=${isIdPrimary}
+          .isIdSelected=${isIdSelected}
+          .getDatapointColor=${getDatapointColor}
+          .onIdsSelected=${onIdsSelected}
+        />
       </div>
     `;
   }
@@ -334,9 +334,6 @@ export class PerturbationsChartModule extends LitModule {
     return html`
       <div class="controls-holder">
         <div class="dropdown-holder">
-          <label class="dropdown-label">Show slices</label>
-        </div>
-        <div class="dropdown-holder">
           <label class="dropdown-label">Facet by</label>
           <select class="dropdown" @change=${onGroupingChange}>
             ${this.GROUPING_OPTIONS.map(option => html`
@@ -345,288 +342,10 @@ export class PerturbationsChartModule extends LitModule {
               </option>`)}
           </select>
         </div>
-        <div class="dropdown-holder">
-          <label class="dropdown-label">Visualization</label>
-          <select class="dropdown" @change=${onVisualizationChange}>
-            ${this.VISUALIZATION_OPTIONS.map(option => html`
-              <option ?selected=${this.selectedVisualizationKey === option.key} value=${option.key}>
-                ${option.text}
-              </option>`)}
-          </select>
-        </div>
       </div>
     `;
   }
 
-
-  private renderChart(source: Source, deltas: DeltaRow[]) {
-    if (!this.dims) {
-      // console.log('  no dims...');
-      return;
-    }
-    const sizing = this.sizing(this.dims);
-    return svg`
-      <svg
-        class='svg'
-        xmlns='http://www.w3.org/2000/svg'
-        width=${sizing.plotWidth}
-        height=${sizing.plotHeight}
-      >
-        <g class="axes" />
-        <g class="brushing" />
-        ${this.renderVisSubstance(source, deltas, sizing)}
-      </svg>
-    `;
-  }
-
-  // renderSizingRect(sizing: ChartSizing) {
-  //   const {plotWidth, plotHeight, xScale, yScale} = sizing;
-  //   return svg`
-  //     <g>
-  //       <rect
-  //         x=${0}
-  //         y=${0}
-  //         width=${plotWidth}
-  //         height=${plotHeight}
-  //         fill="yellow"
-  //         opacity="0.25"
-  //       />
-  //       <rect
-  //         x=${xScale.range()[0]}
-  //         width=${xScale.range()[1] - xScale.range()[0]}
-  //         y=${yScale.range()[1]}
-  //         height=${yScale.range()[0] - yScale.range()[1]}
-  //         fill="green"
-  //         opacity="0.25"
-  //       />
-  //     </g>
-  //   `;
-  // }
-
-
-  // //
-  // /* config = {
-  //   scatterplot: (yValue, yAxis, render, update)
-  //   streaks: (yValue, yAxis, render, update)
-  // */
-  // private yValue(dr: DeltaRow) {
-  //   this.yScale = d3.scaleLinear()
-  //     .domain(this.getYDomain())
-  //     .range([this.plotHeight - this.plotBottomMargin, 0]);
-  // }
-  // private getYDomain() {
-  //   return {
-  //     [this.STREAKS_INDEX]: [0, 1]
-  //   }
-  //   const yScale = this.yScale! as d3.AxisScale<number>;
-  //   if (this.selectedVisualizationIndex == this.STREAKS_INDEX) {
-  //     const jitter = (parseInt(hash(dr.d.id), 16) % 1000) / 1000;
-  //     const zScale = (yScale as d3.AxisScale<number>).domain([0, 2]);
-  //     // const yScaleForStreaks = (yScale.copy().domain([0, 1]) as d3.AxisScale<number>);
-  //     return yScaleForStreaks(jitter);
-  //   }
-
-  //   if (this.selectedVisualizationIndex === this.SCATTERPLOT_INDEX) {
-  //     const yScaleForScatterplot = yScale.copy().domain([-1, 1]);
-  //     return yScaleForScatterplot(dr.delta);
-  //   }
-  // }
-
-  private renderVisSubstance(source: Source, deltaRows: DeltaRow[], sizing: ChartSizing) {
-    // return;
-    // console.log('renderVisSubstance', this.dims);
-    // Some of the vis is built imperatively, so wait until that's done.
-    // const key = JSON.stringify(source);
-    // if (!this.isVisReadyForRender[key]) {
-    //   return null;
-    // }
-
-    // These can be null when fetching; wait until everything is ready.
-    const filtered = deltaRows.filter(dr => {
-      if (dr.before == null) return false;
-      if (dr.after == null) return false;
-      if (dr.delta == null) return false;
-      return true;
-    });
-    // console.log('filtered.length', filtered.length);
-
-    const {xScale, yScale} = sizing;
-    const {yValueToProject, includeStreaks} = this.visConfig;
-    // const ys = filtered.map(dr => yValueToProject(dr as CompleteDeltaRow));
-    // const yDomain = [Math.min(...ys), Math.max(...ys)];
-    // const yScaleAdjusted = yScale.domain(yDomain).clamp(true);
-    return svg`
-      <g>${filtered.map(deltaRow => {
-        // positioning
-        const dr = (deltaRow as CompleteDeltaRow);
-        const x = xScale(dr.after);
-        const y = yScale(yValueToProject(dr));
-        const translation = `translate(${x}, ${y})`;
-        const deltaPixels = Math.abs(x! - xScale(dr.before)!);
-
-        // styling
-        const color = this.colorService.getDatapointColor(dr.d);
-        const radius = 4;
-        const titleText = [
-          dr.before.toFixed(3),
-          dr.delta > 0 ? 'up to' : 'down to',
-          dr.after.toFixed(3)
-        ].join(' ');
-        const isPrimary = (this.selectionService.primarySelectedId === dr.d.id);
-        const isSelected = !isPrimary && this.selectionService.isIdSelected(dr.d.id);
-        const selectionClasses = {
-          'primary': isPrimary,
-          'selected': isSelected
-        };
-        const streakClass = classMap({'streak': true, ...selectionClasses});
-        const circleClass = classMap({'circle': true, ...selectionClasses});
-        return svg`
-          <g class="point" transform=${translation}>
-            ${includeStreaks && svg`<rect
-              class=${streakClass}
-              x=${(dr.delta > 0) ? -1 * deltaPixels : 0}
-              y="-1"
-              width=${deltaPixels}
-              height="2"
-              fill=${color}
-            />`}
-            <circle
-              class=${circleClass}
-              r=${radius}
-              fill=${color}
-            >
-              <title>${titleText}</title>
-            </circle>
-          </g>
-        `;
-      })}
-      </g>
-    `;
-  }
-
-
-  readDimensions(): Dims | undefined {
-    const divs = this.shadowRoot!.querySelectorAll('.container');
-    if (divs.length === 0) {
-      // console.log('  no divs');
-      return undefined;
-    }
-    const div = divs[0];
-    const el = div.querySelector('.svg-container') as SVGElement;
-    if (!el) {
-      // console.log('  no svg');
-      return undefined;
-    }
-    const width = div.clientWidth;
-    const height = el.clientHeight;
-
-    // console.log('  READ DIMENSIONS');
-    // const {plotHeight, plotWidth} = this.sizing;
-    // if (height > 0 && width > 0 && (plotWidth !== width)) {
-    // console.log('setSizing', this.dims);
-    // this.dims = {width, height};
-    return {width, height};
-  }
-
-  // Build some of the vis iteratively so that we can use some nice d3
-  // functions (eg, axes, brushing).
-  updateVis(source: Source, sourceIndex: number, deltas: DeltaRow[]) {
-    if (!this.dims) {
-      return;
-    }
-    const el = this.shadowRoot!.querySelector(`.container[data-source-index='${sourceIndex}'] svg`) as SVGElement;
-     if (!el) {
-      return;
-    }
-
-    // do this imperatively so we can use d3 to make nice axes
-    // console.log('updateAxes', this.dims);
-    const axesEl = el.querySelector('.axes') as SVGElement;
-    const sizing = this.sizing(this.dims);
-    this.updateAxes(axesEl, sizing);
-    // tell UI we're ready for a proper LitElement render
-    // const key = JSON.stringify(source);
-    // this.isVisReadyForRender[key] = true;
-
-    const brushingEl = el.querySelector('.brushing') as SVGElement;
-    this.updateBrushing(sourceIndex, brushingEl, sizing);
-  }
-
-  onBrushed(brush, brushGroup, sourceIndex: number) {
-    const selectionEvent = d3.event.selection;
-    const brushedIds = this.brushedIds(sourceIndex, selectionEvent);
-    this.selectionService.selectIds(brushedIds);
-
-    if (brushedIds.length === 0 && d3.event.sourceEvent.type !== 'end') {
-      brush.clear(brushGroup);
-    }
-    // hide the brushing selection
-    // if (brushedIds.length === 0) {
-    //   d3.select(el).selectAll('.handle,.selection')
-    //     .attr('display', 'none');
-    // }
-  }
-
-  brushedIds(sourceIndex: number, selectionEvent) {
-    if (selectionEvent == null) {
-      return [];
-    }
-
-    const sources = this.deltasService.sourcesForModel(this.model);
-    const source = sources[sourceIndex];
-    if (!source) {
-      return [];
-    }
-
-    // Project each data point and figure out what is in those bounds
-    const {xScale, yScale} = this.sizing(this.dims!);
-    const boundsX = [selectionEvent[0][0], selectionEvent[1][0]];
-    const boundsY = [selectionEvent[0][1], selectionEvent[1][1]];
-    const {deltaRows} = this.deltasService.deltaInfoFromSource(source);
-    const {yValueToProject} = this.visConfig;
-    return deltaRows.flatMap(deltaRow => {
-      const dr = (deltaRow as CompleteDeltaRow);
-      const x = xScale(dr.after)!;
-      const y = yScale(yValueToProject(dr))!;
-      if (x < boundsX[0] || x > boundsX[1] || y < boundsY[0] || y > boundsY[1]) {
-        return [];
-      }
-      return [dr.d.id];
-    });
-  }
-
-  updateBrushing(sourceIndex: number, el: SVGElement, sizing: ChartSizing) {
-    const brush = d3.brush();
-    const {plotWidth, plotHeight} = sizing;
-    const brushGroup = d3.select(el).html('').append('g')
-      .attr('class', 'brush')
-      .call(brush);
-    brush.extent([[0, 0], [plotWidth, plotHeight]]);
-    brush.on('end', () => {
-      this.onBrushed(brush, brushGroup, sourceIndex);
-    });
-
-  }
-
-  updateAxes(el: SVGElement, sizing: ChartSizing) {
-    const {yTicks} = this.visConfig;
-    const {plotHeight, xScale, yScale, margins} = sizing;
-
-    d3.select(el).html('');
-    d3.select(el).append('g')
-      .attr('id', 'xAxis')
-      .attr('transform', `translate(
-        0, 
-        ${plotHeight! - margins.bottom}
-      )`)
-      .call(d3.axisBottom(xScale));
-
-    // TODO(lit-dev) update ticks based on type of data available; see predictions module
-    d3.select(el).append('g')
-      .attr('id', 'yAxis')
-      .attr('transform', `translate(${margins.left}, 0)`)
-      .call(d3.axisLeft(yScale).ticks(yTicks));
-  }
 }
 
 declare global {

@@ -33,7 +33,10 @@ type ScoreReader = (id: string) => number | undefined;
 
 export type DeltaInfo = {
   generationKeys: string[]
-  deltaRows: DeltaRow[]
+  deltaRowsByGeneration: {
+    [generationKey: string]: DeltaRow[]
+  }
+  allDeltaRows: DeltaRow[]
 };
 
 export type DeltaRow = {
@@ -79,13 +82,18 @@ export class DeltasService extends LitService {
       byGeneration[key] = (byGeneration[key] || []).concat([d]);
     });
 
-    const deltaRows = Object.keys(byGeneration).flatMap(generationKey => {
+    let allDeltaRows = [];
+    const deltaRowsByGeneration = {};
+    Object.keys(byGeneration).forEach(generationKey => {
       const ds = byGeneration[generationKey];
-      return this.deltaRowsForSource(source, ds)
+      const deltaRows = this.deltaRowsForSource(source, ds);
+      deltaRowsByGeneration[generationKey] = deltaRows;
+      allDeltaRows = allDeltaRows.concat(deltaRows);
     });
     return {
       generationKeys: Object.keys(byGeneration),
-      deltaRows
+      deltaRowsByGeneration: deltaRowsByGeneration,
+      allDeltaRows: allDeltaRows
     };
   } 
 

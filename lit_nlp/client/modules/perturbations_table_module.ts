@@ -115,14 +115,14 @@ export class PerturbationsTableModule extends LitModule {
       'hidden': (sourceIndex !== (this.lastSelectedSourceIndex ?? 0)),
       [sourceIndex]: true
     });
-    const {generationKeys, deltaRows} = this.deltasService.deltaInfoFromSource(source);
-    const filteredDeltaRows = this.filteredDeltaRows(deltaRows);
+    const {generationKeys, allDeltaRows} = this.deltasService.deltaInfoFromSource(source);
+    const filteredDeltaRows = this.filteredDeltaRows(allDeltaRows);
     const tableRows = this.formattedTableRows(filteredDeltaRows);
     const deltaRowsById: DeltaRowsById = {};
-    deltaRows.forEach(deltaRow => deltaRowsById[deltaRow.d.id] = deltaRow);
+    allDeltaRows.forEach(deltaRow => deltaRowsById[deltaRow.d.id] = deltaRow);
     return html`
       <div class=${rootClass}>
-        ${this.renderHeader(generationKeys.length, deltaRows, tableRows.length, sourceIndex)}
+        ${this.renderHeader(generationKeys.length, allDeltaRows, tableRows.length, sourceIndex)}
         ${this.renderTable(source, tableRows, deltaRowsById)}
       </div>
     `;
