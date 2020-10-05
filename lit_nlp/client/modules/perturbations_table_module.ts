@@ -122,28 +122,36 @@ export class PerturbationsTableModule extends LitModule {
     deltaRows.forEach(deltaRow => deltaRowsById[deltaRow.d.id] = deltaRow);
     return html`
       <div class=${rootClass}>
-        ${this.renderHeader(generationKeys.length, tableRows.length, sourceIndex)}
+        ${this.renderHeader(generationKeys.length, deltaRows, tableRows.length, sourceIndex)}
         ${this.renderTable(source, tableRows, deltaRowsById)}
       </div>
     `;
   }
 
-  private renderHeader(generationsCount: number, rowsCount: number, sourceIndex: number) {
+  private renderHeader(generationsCount: number, deltaRows: DeltaRow[], rowsCount: number,
+    sourceIndex: number) {
     const toggleFilterSelected = () => {
       this.filterSelected = !this.filterSelected;
     };
+    const onSelectGenerated = () => {
+      const ids = this.appState.generatedDataPoints.map(d => d.id);
+      this.selectionService.selectIds(ids);
+    }
     return html`
       <div class="info">
         <div class="header-and-actions">
           <div class="header-text">
-            Generated ${rowsCount === 1 ? '1 datapoint' : `${rowsCount} datapoints`}
+            Generated ${deltaRows.length === 1 ? '1 datapoint' : `${deltaRows.length} datapoints`}
             from ${generationsCount === 1 ? '1 perturbation' : `${generationsCount} perturbations`}
           </div>
           <lit-checkbox
-            label="Only show if selected"
+            label="Only show selected"
             ?checked=${this.filterSelected}
             @change=${toggleFilterSelected}
           ></lit-checkbox>
+          <button
+            @click=${onSelectGenerated}
+          >Select generated</button>
         </div>
         ${this.renderNavigationStrip(sourceIndex)}
        </div>
@@ -190,10 +198,9 @@ export class PerturbationsTableModule extends LitModule {
 
   /* Enforce selection */
   private filteredDeltaRows(deltaRows: DeltaRow[]): DeltaRow[] {
-    return deltaRows.filter(deltaRow => {
-      return (this.selectionService.isIdSelected(deltaRow.d.id) ||
-        this.selectionService.isIdSelected(deltaRow.parent.id));
-    });
+    return (this.filterSelected)
+      ? this.deltasService.selectedDeltaRows(deltaRows)
+      : deltaRows;
   }
 
   private formattedTableRows(deltaRows: DeltaRow[]): TableData[] {

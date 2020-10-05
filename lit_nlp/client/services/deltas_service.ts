@@ -89,6 +89,14 @@ export class DeltasService extends LitService {
     };
   } 
 
+  public selectedDeltaRows(deltaRows: DeltaRow[]): DeltaRow[] {
+    return deltaRows.filter(deltaRow => {
+      return (
+        this.selectionService.isIdSelected(deltaRow.d.id) ||
+        this.selectionService.isIdSelected(deltaRow.parent.id)
+      );
+    });
+  }
   private deltaRowsForSource(source: Source, ds: IndexedInput[]): DeltaRow[] {
     const scoreReaders = this.getScoreReaders(source);
     return scoreReaders.flatMap(scoreReader => {

@@ -51,10 +51,21 @@
 .header-and-actions {
   display: flex;
   flex-direction: row;
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: center;
 }
 
 .header-text {
   margin-right: 10px;
+}
+
+button {
+  margin-left: 5px;
+
+  /* hacking around global styles */
+  padding: 2px 12px;
+  background: white;
+  font-size: 9pt;
+  border: 1px solid #ddd;
+  font-family: 'Google Sans', sans-serif !important;
 }

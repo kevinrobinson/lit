@@ -36,3 +36,32 @@
   flex: 1;
   overflow: hidden;
 }
+
+.streak {
+  opacity: 0.15;
+}
+
+.streak.primary {
+	opacity: 0.8;
+}
+
+.streak.selected {
+	opacity: 0.5;
+}
+
+.circle {
+  opacity: 0.25;
+}
+
+.circle.primary {
+  opacity: 1.0;
+  stroke-width: 1px;
+  stroke: #000;
+}
+
+.circle.selected {
+	r: 5px;
+	opacity: 0.8;
+	stroke-width: 2px;
+	stroke: #fff;
+}

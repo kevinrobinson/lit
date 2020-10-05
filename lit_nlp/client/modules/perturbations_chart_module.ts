@@ -56,6 +56,11 @@ interface Dims {
   height: number;
 }
 
+interface Brushed {
+  xRange: [number, number];
+  yRange: [number, number];
+}
+
 interface ChartSizing {
   margins: {
     top: number;
@@ -92,7 +97,7 @@ const SCATTERPLOT_VISUALIZATION_OPTION: VisualizationConfig = {
   text: 'scatterplot',
   yDomain: [-1, 1],
   yTicks: 3,
-  includeStreaks: false,
+  includeStreaks: true,
   yValueToProject: dr => dr.delta
 }
 /**
@@ -126,7 +131,7 @@ export class PerturbationsChartModule extends LitModule {
     { name: 'perturbation' }
   ];
   private readonly VISUALIZATION_OPTIONS: VisualizationConfig[] = [
-    STREAKS_VISUALIZATION_OPTION,
+    // STREAKS_VISUALIZATION_OPTION,
     SCATTERPLOT_VISUALIZATION_OPTION
   ]
 
@@ -134,11 +139,10 @@ export class PerturbationsChartModule extends LitModule {
   private readonly colorService = app.getService(ColorService);
 
   // TODO(lit-dev) factor out selection to deltaService[this.model]
-  @observable private filterSelected = true;
   @observable private lastSelectedSourceIndex?: number;
   @observable private selectedGroupingIndex = 0;
   @observable private selectedVisualizationKey = this.VISUALIZATION_OPTIONS[0].key;
-
+  @observable private brushed?: Brushed;
   /* Tunings for vis margins, etc. */
   // private readonly 
   // private readonly maxPlotWidth = 900;
@@ -185,10 +189,12 @@ export class PerturbationsChartModule extends LitModule {
     const {yDomain} = this.visConfig;
     const xScale = d3.scaleLinear()
       .domain([0, 1])
-      .range([margins.left, plotWidth - margins.right]);
+      .range([margins.left, plotWidth - margins.right])
+      .clamp(true);
     const yScale = d3.scaleLinear()
       .domain(yDomain)
-      .range([plotHeight - margins.bottom, margins.top]);
+      .range([plotHeight - margins.bottom, margins.top])
+      .clamp(true);
 
     return {
       plotWidth,
@@ -224,21 +230,22 @@ export class PerturbationsChartModule extends LitModule {
 
   // TODO(lit-dev) factor out?
   /* Enforce selection */
-  private filteredDeltaRows(deltaRows: DeltaRow[]): DeltaRow[] {
-    return deltaRows.filter(deltaRow => {
-      return (this.selectionService.isIdSelected(deltaRow.d.id) ||
-        this.selectionService.isIdSelected(deltaRow.parent.id));
-    });
-  }
+  // private filteredDeltaRows(deltaRows: DeltaRow[]): DeltaRow[] {
+  //   return (this.filterSelected)
+  //     ? this.deltasService.selectedDeltaRows(deltaRows)
+  //     : deltaRows;
+  // }
 
   // TODO(lit-dev) factor out this selection state to DeltasService, so 
   // components are synced.  filtering too!  keyed by `modelName`
+  // no filtering...
   private filteredDeltasRowsForSource(source: Source) {
     const {generationKeys, deltaRows} = this.deltasService.deltaInfoFromSource(source);
-    const filteredDeltaRows = this.filteredDeltaRows(deltaRows);
+    return deltaRows;
+    // const filteredDeltaRows = this.filteredDeltaRows(deltaRows);
     // const deltaRowsById: DeltaRowsById = {};
     // deltaRows.forEach(deltaRow => deltaRowsById[deltaRow.d.id] = deltaRow);
-    return filteredDeltaRows;
+    // return filteredDeltaRows;
   }
 
   
@@ -366,36 +373,36 @@ export class PerturbationsChartModule extends LitModule {
         width=${sizing.plotWidth}
         height=${sizing.plotHeight}
       >
-        ${this.renderSizingRect(sizing)}
         <g class="axes" />
+        <g class="brushing" />
         ${this.renderVisSubstance(source, deltas, sizing)}
       </svg>
     `;
   }
 
-  renderSizingRect(sizing: ChartSizing) {
-    const {plotWidth, plotHeight, xScale, yScale} = sizing;
-    return svg`
-      <g>
-        <rect
-          x=${0}
-          y=${0}
-          width=${plotWidth}
-          height=${plotHeight}
-          fill="yellow"
-          opacity="0.25"
-        />
-        <rect
-          x=${xScale.range()[0]}
-          width=${xScale.range()[1] - xScale.range()[0]}
-          y=${yScale.range()[1]}
-          height=${yScale.range()[0] - yScale.range()[1]}
-          fill="green"
-          opacity="0.25"
-        />
-      </g>
-    `;
-  }
+  // renderSizingRect(sizing: ChartSizing) {
+  //   const {plotWidth, plotHeight, xScale, yScale} = sizing;
+  //   return svg`
+  //     <g>
+  //       <rect
+  //         x=${0}
+  //         y=${0}
+  //         width=${plotWidth}
+  //         height=${plotHeight}
+  //         fill="yellow"
+  //         opacity="0.25"
+  //       />
+  //       <rect
+  //         x=${xScale.range()[0]}
+  //         width=${xScale.range()[1] - xScale.range()[0]}
+  //         y=${yScale.range()[1]}
+  //         height=${yScale.range()[0] - yScale.range()[1]}
+  //         fill="green"
+  //         opacity="0.25"
+  //       />
+  //     </g>
+  //   `;
+  // }
 
 
   // //
@@ -446,12 +453,19 @@ export class PerturbationsChartModule extends LitModule {
 
     const {xScale, yScale} = sizing;
     const {yValueToProject, includeStreaks} = this.visConfig;
+    // const ys = filtered.map(dr => yValueToProject(dr as CompleteDeltaRow));
+    // const yDomain = [Math.min(...ys), Math.max(...ys)];
+    // const yScaleAdjusted = yScale.domain(yDomain).clamp(true);
     return svg`
       <g>${filtered.map(deltaRow => {
+        // positioning
         const dr = (deltaRow as CompleteDeltaRow);
         const x = xScale(dr.after);
         const y = yScale(yValueToProject(dr));
         const translation = `translate(${x}, ${y})`;
+        const deltaPixels = Math.abs(x! - xScale(dr.before)!);
+
+        // styling
         const color = this.colorService.getDatapointColor(dr.d);
         const radius = 4;
         const titleText = [
@@ -459,23 +473,28 @@ export class PerturbationsChartModule extends LitModule {
           dr.delta > 0 ? 'up to' : 'down to',
           dr.after.toFixed(3)
         ].join(' ');
-        const deltaPixels = Math.abs(x! - xScale(dr.before)!);
+        const isPrimary = (this.selectionService.primarySelectedId === dr.d.id);
+        const isSelected = !isPrimary && this.selectionService.isIdSelected(dr.d.id);
+        const selectionClasses = {
+          'primary': isPrimary,
+          'selected': isSelected
+        };
+        const streakClass = classMap({'streak': true, ...selectionClasses});
+        const circleClass = classMap({'circle': true, ...selectionClasses});
         return svg`
           <g class="point" transform=${translation}>
             ${includeStreaks && svg`<rect
-              class="streak"
+              class=${streakClass}
               x=${(dr.delta > 0) ? -1 * deltaPixels : 0}
               y="-1"
               width=${deltaPixels}
               height="2"
               fill=${color}
-              opacity="0.25"
             />`}
             <circle
-              class="circle-after"
+              class=${circleClass}
               r=${radius}
               fill=${color}
-              opacity="0.25"
             >
               <title>${titleText}</title>
             </circle>
@@ -529,6 +548,65 @@ export class PerturbationsChartModule extends LitModule {
     // tell UI we're ready for a proper LitElement render
     // const key = JSON.stringify(source);
     // this.isVisReadyForRender[key] = true;
+
+    const brushingEl = el.querySelector('.brushing') as SVGElement;
+    this.updateBrushing(sourceIndex, brushingEl, sizing);
+  }
+
+  onBrushed(brush, brushGroup, sourceIndex: number) {
+    const selectionEvent = d3.event.selection;
+    const brushedIds = this.brushedIds(sourceIndex, selectionEvent);
+    this.selectionService.selectIds(brushedIds);
+
+    if (brushedIds.length === 0 && d3.event.sourceEvent.type !== 'end') {
+      brush.clear(brushGroup);
+    }
+    // hide the brushing selection
+    // if (brushedIds.length === 0) {
+    //   d3.select(el).selectAll('.handle,.selection')
+    //     .attr('display', 'none');
+    // }
+  }
+
+  brushedIds(sourceIndex: number, selectionEvent) {
+    if (selectionEvent == null) {
+      return [];
+    }
+
+    const sources = this.deltasService.sourcesForModel(this.model);
+    const source = sources[sourceIndex];
+    if (!source) {
+      return [];
+    }
+
+    // Project each data point and figure out what is in those bounds
+    const {xScale, yScale} = this.sizing(this.dims!);
+    const boundsX = [selectionEvent[0][0], selectionEvent[1][0]];
+    const boundsY = [selectionEvent[0][1], selectionEvent[1][1]];
+    const deltaRows = this.filteredDeltasRowsForSource(source);
+    const {yValueToProject} = this.visConfig;
+    return deltaRows.flatMap(deltaRow => {
+      const dr = (deltaRow as CompleteDeltaRow);
+      const x = xScale(dr.after)!;
+      const y = yScale(yValueToProject(dr))!;
+      if (x < boundsX[0] || x > boundsX[1] || y < boundsY[0] || y > boundsY[1]) {
+        return [];
+      }
+      return [dr.d.id];
+    });
+  }
+
+  updateBrushing(sourceIndex: number, el: SVGElement, sizing: ChartSizing) {
+    const brush = d3.brush();
+    const {plotWidth, plotHeight} = sizing;
+    const brushGroup = d3.select(el).html('').append('g')
+      .attr('class', 'brush')
+      .call(brush);
+    brush.extent([[0, 0], [plotWidth, plotHeight]]);
+    brush.on('end', () => {
+      this.onBrushed(brush, brushGroup, sourceIndex);
+    });
+
   }
 
   updateAxes(el: SVGElement, sizing: ChartSizing) {
@@ -550,82 +628,6 @@ export class PerturbationsChartModule extends LitModule {
       .attr('transform', `translate(${margins.left}, 0)`)
       .call(d3.axisLeft(yScale).ticks(yTicks));
   }
-
-  // updateDataPoints(el: SVGElement, deltaRows: DeltaRow[]) {
-  //   // These can be null when fetching; wait until everything is ready.
-  //   const filtered = deltaRows.filter(dr => {
-  //     if (dr.before == null) return false;
-  //     if (dr.after == null) return false;
-  //     if (dr.delta == null) return false;
-  //     return true;
-  //   });
-
-  //   const xScale = this.xScale! as d3.AxisScale<number>;
-  //   const yScale = this.yScale! as d3.AxisScale<number>;
-  //   const {yValueToProject, includeStreaks} = this.getVisConfig();
-
-  //   d3.select(el).selectAll('circle.circle-after')
-  //     .data(filtered)
-  //     .join('circle')
-  //       .classed('circle-after', true)
-  //       .attr('r', 4)
-  //       .attr('fill', dr => this.colorService.getDatapointColor(dr.d))
-  //       .attr('opacity', 0.25);
-  //   //           r=${radius}
-  //   //           fill=${color}
-  //   //           opacity="0.25"
-  //   //         >
-  //   //   .join("text")
-  //   //     const x = xScale(dr.after);
-  //   //     const yValue = yValueToProject(dr);
-  //   //     const y = yScale(yValue);
-  //   //     .attr("x", (d, i) => i * 16)
-  //   //     .text(d => d);
-  //   // sel.data(filtered).join(
-  //   //   enter => )
-  //   // sel.append('g').attr('')
-
-
-  //   //   <g>${filtered.map(deltaRow => {
-  //   //     const dr = (deltaRow as CompleteDeltaRow);
-  //   //     const x = xScale(dr.after);
-  //   //     const yValue = yValueToProject(dr);
-  //   //     const y = yScale(yValue);
-  //   //     console.log('yValue:', yValue, 'y:', y, 'yScale.domain:', yScale.domain());
-  //   //     const translation = `translate(${x}, ${y})`;
-  //   //     const color = this.colorService.getDatapointColor(dr.d);
-  //   //     const radius = 4;
-  //   //     const titleText = [
-  //   //       dr.before.toFixed(3),
-  //   //       dr.delta > 0 ? 'up to' : 'down to',
-  //   //       dr.after.toFixed(3)
-  //   //     ].join(' ');
-  //   //     const deltaPixels = xScale(dr.delta)!;
-  //   //     return svg`
-  //   //       <g class="point" transform=${translation}>
-  //   //         ${includeStreaks && svg`<rect
-  //   //           class="streak"
-  //   //           x=${radius + (dr.delta > 0 ? deltaPixels : 0)}
-  //   //           y="-1"
-  //   //           width=${Math.abs(deltaPixels) - radius}
-  //   //           height="2"
-  //   //           fill=${color}
-  //   //           opacity="0.25"
-  //   //         />`}
-  //   //         <circle
-  //   //           class="circle-after"
-  //   //           r=${radius}
-  //   //           fill=${color}
-  //   //           opacity="0.25"
-  //   //         >
-  //   //           <title>${titleText}</title>
-  //   //         </circle>
-  //   //       </g>
-  //   //     `;
-  //   //   })}
-  //   //   </g>
-  //   // `;
-  // }
 }
 
 declare global {
