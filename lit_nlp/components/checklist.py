@@ -13,8 +13,9 @@
 # limitations under the License.
 # ==============================================================================
 # Lint as: python3
-"""Word replacement generator."""
+"""TODO(lit-dev)"""
 
+import random
 import copy
 import re
 from typing import Dict, Tuple, Iterator, List, Text, Optional
@@ -36,20 +37,22 @@ from lit_nlp.lib import utils
 JsonDict = types.JsonDict
 
 
+# hacking around bug in checklist for add_negation,
+# see https://github.com/marcotcr/checklist/pull/43
 def try_or(fn, default=None):
-  return fn()
-  # try:
-  #   return fn()
-  # except:
-  #   return default
+  try:
+    return fn()
+  except:
+    return default
 
 SPACIFY = 'spacify_transform'
 WRAP = 'wrap_in_array'
 
 # TODO(lit-dev) deps: checklist, spacy==2.2, python -m spacy download en_core_web_sm
 class Explorer(lit_components.Generator):
-  def __init__(self):
+  def __init__(self, seed=43):
     self.nlp = spacy.load('en_core_web_sm')
+    self.rng = random.Random(seed)
 
   def _rules(self):
     return {
@@ -67,31 +70,17 @@ class Explorer(lit_components.Generator):
       'remove_negation': [SPACIFY, Perturb.remove_negation, {}],
     }
 
-  # override
-  def generate_all(self,
-                   inputs: List[JsonDict],
-                   model: lit_model.Model,
-                   dataset: lit_dataset.Dataset,
-                   config: Optional[JsonDict] = None) -> List[List[JsonDict]]:
-    # reservoir sampling
-    n = config.get('n_max_samples') if config else 1000
-    reservoir = []
-    for ex in inputs:
-      logging.info('example')
-      new_examples = self.generate(ex, model, dataset, config)
-      logging.info('new_examples: %d', len(new_examples))
-      for t, new_example in enumerate(new_examples):
-        if t < n:
-          logging.info('append')
-          reservoir.append(new_example)
-        else:
-          m = random.randint(0,t)
-          if m < n:
-            logging.info('replace')
-            reservoir[m] = new_example
+  # # override
+  # def generate_all(self,
+  #                  inputs: List[JsonDict],
+  #                  model: lit_model.Model,
+  #                  dataset: lit_dataset.Dataset,
+  #                  config: Optional[JsonDict] = None) -> List[List[JsonDict]]:
+  #   output = []
+  #   for ex in inputs:
+  #     output.append(self.generate(ex, model, dataset, config))
+  #   return output
 
-    logging.info("Reservoir sampling kept %d items", len(reservoir))
-    return reservoir
 
   # override
   def generate(self,
@@ -102,7 +91,8 @@ class Explorer(lit_components.Generator):
     del model  # Unused.
     
     rule_keys = [config.get('rule_key')] if config else self._rules().keys()
-    n_per_perturbation = config.get('n_per_perturbation') if config else 100
+    n_per_perturbation = int(config.get('n_per_perturbation', 100)) if config else 100
+    n_per_example = int(config.get('n_per_example', 10)) if config else 10
 
     output = []
     text_keys = utils.find_spec_keys(dataset.spec(), types.TextSegment)
@@ -114,7 +104,14 @@ class Explorer(lit_components.Generator):
           continue
         output.append(self._new_example(example, text_key, new_text))
 
-    return output
+    # enforce: n_per_example
+    # print(n_per_example)
+    # print(len(output))
+    # print(output)
+    if len(output) > n_per_example:
+      return self.rng.sample(output, n_per_example)
+    else:
+      return output
 
   def _new_example(self, example, text_key, new_val):
     new_example = copy.deepcopy(example)
@@ -136,16 +133,16 @@ class Explorer(lit_components.Generator):
       rule = rules.get(rule_key, None)
       if rule is None:
         continue
-      print('attempt:')
+      # print('attempt:')
       input_format, perturbation, params = rule
       checklist_input = self._transform_input_text(text, input_format)
-      print(checklist_input)
-      print(input_format)
-      print(perturbation)
-      print(params)
-      print('----')
+      # print(checklist_input)
+      # print(input_format)
+      # print(perturbation)
+      # print(params)
+      # print('----')
       attempt = try_or(lambda: Perturb.perturb(checklist_input, perturbation, **params))
-      print(attempt)
+      # print(attempt)
       if attempt is not None:
         attempts.append(attempt)
     return attempts

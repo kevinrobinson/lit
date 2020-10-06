@@ -368,9 +368,7 @@ export class GeneratorModule extends LitModule {
   renderChecklistGenerator(generator: string) {
     const onClick = () => {
       this.handleGeneratorClick(generator, {
-        'rule_key': this.checklistRuleKey,
-        'n_per_perturbation': 100,
-        'n_max_samples': 1000,
+        'rule_key': this.checklistRuleKey
       });
     };
     const onChange = (e: Event) => {
@@ -381,6 +379,13 @@ export class GeneratorModule extends LitModule {
     const rules = [
       { value: 'add_negation', text: 'add_negation' },
       { value: 'remove_negation', text: 'remove_negation' },
+      { value: 'expand_contractions', text: 'expand_contractions' },
+      { value: 'contractions', text: 'contract_contractions' },      
+      { value: 'change_location', text: 'change_locations' },
+      { value: 'change_number', text: 'change_numbers' },
+      { value: 'change_names', text: 'change_names' },
+      { value: 'change_names_first_only', text: 'change_names_first_only' },
+      { value: 'change_names_last_only', text: 'change_names_last_only' },
       { value: 'add_typos', text: 'add_typos' }
     ];
 
