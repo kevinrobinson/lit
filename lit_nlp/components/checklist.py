@@ -54,6 +54,8 @@ class Explorer(lit_components.Generator):
     self.nlp = spacy.load('en_core_web_sm')
     self.rng = random.Random(seed)
 
+  # Define how to map `rule_key` values to checklist method calls 
+  # (input transformation key, perturbation method, params)
   def _rules(self):
     return {
       'add_typos': [WRAP, Perturb.add_typos, {}],
@@ -70,18 +72,6 @@ class Explorer(lit_components.Generator):
       'remove_negation': [SPACIFY, Perturb.remove_negation, {}],
     }
 
-  # # override
-  # def generate_all(self,
-  #                  inputs: List[JsonDict],
-  #                  model: lit_model.Model,
-  #                  dataset: lit_dataset.Dataset,
-  #                  config: Optional[JsonDict] = None) -> List[List[JsonDict]]:
-  #   output = []
-  #   for ex in inputs:
-  #     output.append(self.generate(ex, model, dataset, config))
-  #   return output
-
-
   # override
   def generate(self,
                example: JsonDict,
@@ -91,34 +81,31 @@ class Explorer(lit_components.Generator):
     del model  # Unused.
     
     rule_keys = [config.get('rule_key')] if config else self._rules().keys()
-    n_per_perturbation = int(config.get('n_per_perturbation', 100)) if config else 100
     n_per_example = int(config.get('n_per_example', 10)) if config else 10
+    # n_per_perturbation = int(config.get('n_per_perturbation', 100)) if config else 100
 
     output = []
     text_keys = utils.find_spec_keys(dataset.spec(), types.TextSegment)
     for text_key in text_keys:
       text_data = example[text_key]
-      new_texts = self._expand(text_data, rule_keys, n=n_per_perturbation)
+      new_texts = self._expand(text_data, rule_keys)
       for new_text in new_texts:
         if new_text == text_data:
           continue
         output.append(self._new_example(example, text_key, new_text))
 
     # enforce: n_per_example
-    # print(n_per_example)
-    # print(len(output))
-    # print(output)
     if len(output) > n_per_example:
       return self.rng.sample(output, n_per_example)
     else:
       return output
 
-  def _new_example(self, example, text_key, new_val):
+  def _new_example(self, example, text_key: Text, new_val: Text):
     new_example = copy.deepcopy(example)
     new_example[text_key] = new_val
     return new_example
 
-  def _transform_input_text(self, text, input_format):
+  def _transform_input_text(self, text: Text, input_format):
     if input_format is SPACIFY:
       return list(self.nlp.pipe([text]))
     elif input_format is WRAP:
@@ -126,46 +113,29 @@ class Explorer(lit_components.Generator):
     else:
       return text
 
-  def _attempts(self, rule_keys, text):
-    attempts = []
+  # Transform `text` and apply each perturbation in `rule_keys`, extracting
+  # the perturbed text.  Return a list of perturbations after de-duping.
+  def _expand(self, input_text, rule_keys) -> List[Text]:
+    output_texts = set()
     rules = self._rules()
     for rule_key in rule_keys:
       rule = rules.get(rule_key, None)
       if rule is None:
         continue
-      # print('attempt:')
+      
+      # run the perturbation
       input_format, perturbation, params = rule
-      checklist_input = self._transform_input_text(text, input_format)
-      # print(checklist_input)
-      # print(input_format)
-      # print(perturbation)
-      # print(params)
-      # print('----')
+      checklist_input = self._transform_input_text(input_text, input_format)
       attempt = try_or(lambda: Perturb.perturb(checklist_input, perturbation, **params))
-      # print(attempt)
-      if attempt is not None:
-        attempts.append(attempt)
-    return attempts
-
-  def _expand(self, text, rule_keys, n):
-    # logging.info("Running for %s", text)
-    attempts = self._attempts(rule_keys, text)
-    uniques = set()
-    perturbations = []
-    for attempt in attempts:
-      if attempt is None or len(attempt.get('data', [])) is 0:
+      if attempt is None:
         continue
-      ds = [] if 'data' not in attempt else attempt['data'][0]
-      for i in range(0, len(ds)):
-        d = attempt['data'][0][i]
-        meta = None if 'meta' not in attempt else attempt['meta'][0][i]
-        if d not in uniques:
-          uniques.add(d)
-          perturbations.append({
-            'data': d,
-            'meta': meta
-          })
-
-    # Strip meta for now
-    # logging.info("Expanded to %d perturbations.", len(perturbations))
-    return list(p['data'] for p in perturbations)
+      
+      # get each new perturbation text that was produced
+      ds = attempt.get('data', [])
+      perturbed_texts = [] if len(ds) is 0 else ds[0]
+      for text in perturbed_texts:
+        if text in output_texts:
+          continue
+        output_texts.add(text)
+    
+    return list(output_texts)
