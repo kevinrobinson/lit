@@ -35,3 +35,8 @@
   stroke-width: 2px;
   stroke: #fff;
 }
+
+.chart-label {
+  text-anchor: start;
+  fill: #04394b;
+}

@@ -33,6 +33,9 @@ type ScoreReader = (id: string) => number | undefined;
 
 export type DeltaInfo = {
   generationKeys: string[]
+  rulesByGeneration: {
+    [generationKey: string]: string[]
+  }
   deltaRowsByGeneration: {
     [generationKey: string]: DeltaRow[]
   }
@@ -77,9 +80,13 @@ export class DeltasService extends LitService {
   // Get a list of each time a generator was run, and the data points generated
   public deltaInfoFromSource(source: Source): DeltaInfo {
     const byGeneration: {[generationKey: string]: IndexedInput[]} = {};
+    const rulesByGeneration = {};
     this.appState.generatedDataPoints.forEach((d: IndexedInput) => {
       const key = d.meta.creationId;
       byGeneration[key] = (byGeneration[key] || []).concat([d]);
+
+      const rule = d.meta.rule ? d.meta.rule : d.meta.source;
+      rulesByGeneration[key] = (rulesByGeneration[key] || []).concat(rule);
     });
 
     let allDeltaRows = [];
@@ -91,18 +98,16 @@ export class DeltasService extends LitService {
       allDeltaRows = allDeltaRows.concat(deltaRows);
     });
     return {
-      generationKeys: Object.keys(byGeneration),
-      deltaRowsByGeneration: deltaRowsByGeneration,
-      allDeltaRows: allDeltaRows
+      rulesByGeneration,
+      deltaRowsByGeneration,
+      allDeltaRows,
+      generationKeys: Object.keys(byGeneration)
     };
   } 
 
   public selectedDeltaRows(deltaRows: DeltaRow[]): DeltaRow[] {
     return deltaRows.filter(deltaRow => {
-      return (
-        this.selectionService.isIdSelected(deltaRow.d.id) ||
-        this.selectionService.isIdSelected(deltaRow.parent.id)
-      );
+      return this.selectionService.isIdSelected(deltaRow.d.id);
     });
   }
   private deltaRowsForSource(source: Source, ds: IndexedInput[]): DeltaRow[] {

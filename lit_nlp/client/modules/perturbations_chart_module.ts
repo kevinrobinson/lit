@@ -260,7 +260,7 @@ export class PerturbationsChartModule extends LitModule {
 
   
   render() {
-    // console.log('> render', this.dims);
+    console.log('> PARENT render', this.dims);
     return html`<div id="root">${this.renderContent()}`;
 
   }
@@ -275,56 +275,17 @@ export class PerturbationsChartModule extends LitModule {
      * each (model, outputKey, fieldName).
      */
     return this.deltasService.sourcesForModel(this.model).map((source, index) => {
+      const deltaInfo = this.deltasService.deltaInfoFromSource(source);
       return html`
-        ${this.renderControls()}
+        ${this.renderControls(deltaInfo.generationKeys)}
         <div class="chart-or-charts">
-          ${this.renderChartOrStackedCharts(source, index)}
+          ${this.renderChartOrStackedCharts(source, index, deltaInfo)}
         </div>
       `;
     });
   }
 
-  private renderChartOrStackedCharts(source: Source, sourceIndex: number) {
-    const deltaInfo = this.deltasService.deltaInfoFromSource(source);
-    const {generationKeys, deltaRowsByGeneration, allDeltaRows} = deltaInfo;
-    console.log('generationKeys', generationKeys);
-    return (this.selectedGroupingKey === PERTURBATION_GROUPING_OPTION.key)
-      ? generationKeys.map(key => this.renderForSource(source, sourceIndex, deltaRowsByGeneration[key]))
-      : this.renderForSource(source, sourceIndex, allDeltaRows);
-  }
-
-  // TODO(lit-dev) navigation UI
-  private renderForSource(source: Source, sourceIndex: number, deltaRows: DeltaRow[]) {
-    const classes = classMap({
-      'container': true,
-      'hidden': (sourceIndex !== (this.lastSelectedSourceIndex ?? 0)),
-      [sourceIndex]: true
-    });
-
-    const isIdPrimary = (id: string) => this.selectionService.primarySelectedId === id;
-    const isIdSelected = (id: string) => this.selectionService.isIdSelected(id);
-    const getDatapointColor = (d: IndexedInput) => this.colorService.getDatapointColor(d);
-    const onIdsSelected = (ids: string[]) => this.selectionService.selectIds(ids);
-    // TODO(lit-dev) moving reads of values into functions breaks the observability;
-    // doing that means the child component doesn't re-render in response to changes in
-    // selection.
-    return html`
-      <div class=${classes} data-source-index=${sourceIndex}>
-        <lit-perturbations-chart
-          class="chart"
-          .visConfig=${this.visConfig}
-          .source=${source}
-          .deltaRows=${deltaRows}
-          .isIdPrimary=${isIdPrimary}
-          .isIdSelected=${isIdSelected}
-          .getDatapointColor=${getDatapointColor}
-          .onIdsSelected=${onIdsSelected}
-        />
-      </div>
-    `;
-  }
-
-  private renderControls() {
+  private renderControls(generationKeys: string[]) {
     const onFacetingChange = (e: Event) => {
       this.selectedGroupingKey = {
         [PERTURBATION_GROUPING_OPTION.key]: NO_GROUPING_OPTION.key,
@@ -340,6 +301,7 @@ export class PerturbationsChartModule extends LitModule {
         <div class="dropdown-holder">
           <lit-checkbox
             label="Facet by perturbation"
+            ?disabled=${generationKeys.length < 2}
             ?checked=${this.selectedGroupingKey === PERTURBATION_GROUPING_OPTION.key}
             @change=${onFacetingChange}
           ></lit-checkbox>
@@ -348,6 +310,60 @@ export class PerturbationsChartModule extends LitModule {
     `;
   }
 
+  private renderChartOrStackedCharts(source: Source, sourceIndex: number, deltaInfo: DeltaInfo) {    
+    const {generationKeys, deltaRowsByGeneration, allDeltaRows, rulesByGeneration} = deltaInfo;
+
+    if (this.selectedGroupingKey === PERTURBATION_GROUPING_OPTION.key) {
+      return generationKeys.map(key => {
+        const rules = rulesByGeneration[key];
+        const labelText = Array.from(new Set(rules)).join(' ');
+        return this.renderForSource(source, sourceIndex, deltaRowsByGeneration[key], labelText);
+      });
+    }
+
+    return this.renderForSource(source, sourceIndex, allDeltaRows);
+  }
+
+  // TODO(lit-dev) navigation UI
+  private renderForSource(source: Source, sourceIndex: number, deltaRows: DeltaRow[], labelText?: string) {
+    const classes = classMap({
+      'container': true,
+      'hidden': (sourceIndex !== (this.lastSelectedSourceIndex ?? 0)),
+      [sourceIndex]: true
+    });
+
+    // TODO(lit-dev) this doesn't work, because the parent component
+    // doesn't read these observables at render time, so it can't track
+    // the dependency.  The child component can track this though, so 
+    // why doesn't it re-render?
+    //
+    // The child component doesn't change; it can't see inside the functions,
+    // so from its perspective, nothing has changed.  Takeaway: don't pass
+    // functions, they're opaque (in React, it's an identity check).
+    const isIdPrimary = (id: string) => this.selectionService.primarySelectedId === id;
+    const isIdSelected = (id: string) => this.selectionService.isIdSelected(id);
+    const getDatapointColor = (d: IndexedInput) => this.colorService.getDatapointColor(d);
+    const onIdsSelected = (ids: string[]) => this.selectionService.selectIds(ids);
+
+    // TODO(lit-dev) moving reads of values into functions breaks the observability;
+    // doing that means the child component doesn't re-render in response to changes in
+    // selection.
+    return html`
+      <div class=${classes} data-source-index=${sourceIndex}>
+        <lit-perturbations-chart
+          class="chart"
+          .labelText=${labelText}
+          .visConfig=${this.visConfig}
+          .source=${source}
+          .deltaRows=${deltaRows}
+          .isIdPrimary=${isIdPrimary}
+          .isIdSelected=${isIdSelected}
+          .getDatapointColor=${getDatapointColor}
+          .onIdsSelected=${onIdsSelected}
+        />
+      </div>
+    `;
+  }
 }
 
 declare global {

@@ -22,6 +22,7 @@ import {css, customElement, html, svg, LitElement, property} from 'lit-element';
 import {classMap} from 'lit-html/directives/class-map';
 import {styleMap} from 'lit-html/directives/style-map';
 
+import {ReactiveElement} from '../lib/elements';
 import {DeltaRow, DeltaInfo, Source} from '../services/deltas_service';
 import {CallConfig, FacetMap, GroupedExamples, IndexedInput, LitName, ModelsMap, Spec} from '../lib/types';
 import {styles} from './pc.css';
@@ -51,6 +52,10 @@ interface ChartSizing {
     bottom: number;
     left: number;
     right: number;
+  },
+  labelMargins: {
+    left: number;
+    bottom: number;
   }
   plotWidth: number;
   plotHeight: number;
@@ -104,7 +109,7 @@ const PERTURBATION_GROUPING_OPTION: GroupingConfig = {
 
 
 @customElement('lit-perturbations-chart')
-export class PerturbationsChart extends LitElement {
+export class PerturbationsChart extends ReactiveElement {
   static get styles() {
     return styles;
   }
@@ -112,6 +117,7 @@ export class PerturbationsChart extends LitElement {
   @property({type: Object}) visConfig!: VisualizationConfig;
   @property({type: Object}) source!: Source;
   @property({type: Object}) deltaRows!: DeltaRow[];
+  @property({type: String}) labelText!: string;
 
   @property({type: Object}) isIdPrimary?: (id: string) => boolean;
   @property({type: Object}) isIdSelected?: (id: string) => boolean;
@@ -131,6 +137,10 @@ export class PerturbationsChart extends LitElement {
       bottom: 30,
       left: 30,
       right: 10
+    };
+    const labelMargins = {
+      left: 8,
+      bottom: 10
     };
 
     // size
@@ -153,7 +163,8 @@ export class PerturbationsChart extends LitElement {
       plotHeight,
       xScale,
       yScale,
-      margins
+      margins,
+      labelMargins
     };
   }
 
@@ -200,7 +211,7 @@ export class PerturbationsChart extends LitElement {
   }
 
   render() {
-    console.log('> render')
+    console.log('> child render')
     if (!this.source || !this.deltaRows || !this.visConfig) {
       throw new Error('required properties missing');
     }
@@ -248,7 +259,7 @@ export class PerturbationsChart extends LitElement {
       if (dr.delta == null) return false;
       return true;
     });
-    // console.log('filtered.length', filtered.length);
+    console.log('  renderVisSubstance');
 
     const {xScale, yScale} = sizing;
     const {yValueToProject, includeStreaks} = this.visConfig;
@@ -375,7 +386,7 @@ export class PerturbationsChart extends LitElement {
 
   updateAxes(el: SVGElement, sizing: ChartSizing) {
     const {yTicks} = this.visConfig;
-    const {plotHeight, xScale, yScale, margins} = sizing;
+    const {plotWidth, plotHeight, xScale, yScale, margins, labelMargins} = sizing;
 
     d3.select(el).html('');
     d3.select(el).append('g')
@@ -386,11 +397,27 @@ export class PerturbationsChart extends LitElement {
       )`)
       .call(d3.axisBottom(xScale));
 
+    const axisTitle = 'predictionzzzz';
+    d3.select(el).append('text')
+      .attr('transform', `translate(${plotWidth/2}, ${plotHeight! - margins.bottom}`)
+      .style('text-anchor', 'middle')
+      .text(axisTitle);
+
     // TODO(lit-dev) update ticks based on type of data available; see predictions module
     d3.select(el).append('g')
       .attr('id', 'yAxis')
       .attr('transform', `translate(${margins.left}, 0)`)
       .call(d3.axisLeft(yScale).ticks(yTicks));
+
+    const label = {
+      text: this.labelText,
+      left: margins.left + labelMargins.left,
+      top: plotHeight! - margins.bottom - labelMargins.bottom
+    };
+    d3.select(el).append('text')
+      .classed('chart-label', true)
+      .attr('transform', `translate(${label.left},  ${label.top})`)
+      .text(label.text);
   }
 }
 
