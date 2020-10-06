@@ -62,6 +62,7 @@ export class GeneratorModule extends LitModule {
   @observable appliedGenerator: string|null = null;
   @observable datapointEdited: boolean = false;
   @observable substitutions = 'great -> terrible';
+  @observable checklistRuleKey = 'add_negation';
   // When embedding indices is computed, this is the index of the selection.
   @observable embeddingSelection = 0;
 
@@ -335,12 +336,14 @@ export class GeneratorModule extends LitModule {
         <div class='generator-control'>
           <button @click=${onClick}>${generator}</button>
           <label class="input-label">Substitutions: </label>
-          <input type="text" style=${styleMap({width: "40%"})}
+          <input type="text" class="substitutions-input"
             @input=${updateSubstitutions}
             .value="${this.substitutions}" />
         </div>`;
       // clang-format on
     };
+
+
     // clang-format off
     return html`
         <div id="generators">
@@ -351,11 +354,56 @@ export class GeneratorModule extends LitModule {
       }
       if (generator === 'word_replacer') {
         return wordReplacer(generator);
+      } else if (generator === 'checklist') {
+        return this.renderChecklistGenerator(generator);
       } else {
         return genericGenerator(generator);
       }
     })}
         </div>
+    `;
+    // clang-format on
+  }
+
+  renderChecklistGenerator(generator: string) {
+    const onClick = () => {
+      this.handleGeneratorClick(generator, {
+        'rule_key': this.checklistRuleKey,
+        'n_per_perturbation': 100,
+        'n_max_samples': 1000,
+      });
+    };
+    const onChange = (e: Event) => {
+      const input = e.target! as HTMLInputElement;
+      this.checklistRuleKey = input.value;
+    };
+    
+    const rules = [
+      { value: 'add_negation', text: 'add_negation' },
+      { value: 'remove_negation', text: 'remove_negation' },
+      { value: 'add_typos', text: 'add_typos' }
+    ];
+
+    // clang-format off
+    return html`
+      <div class='generator-control'>
+        <button @click=${onClick}>${generator}</button>
+        <label class="input-label">Perturbation:</label>
+        <select class="dropdown" @change=${onChange}>
+          <option value="" selected></option>
+          ${rules.map(rule => {
+            return html`
+              <option
+                value="${rule.value}"
+                ?selected=${rule.value === this.checklistRuleKey}
+              >
+                ${rule.text}
+              </option>
+            `;
+          })}
+        </select>
+        <a target="_blank" href="https://github.com/marcotcr/checklist">read more</a>
+      </div>
     `;
     // clang-format on
   }

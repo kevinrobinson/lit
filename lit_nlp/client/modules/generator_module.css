@@ -27,6 +27,7 @@
 .generator-control {
   display: flex;
   flex-direction: row;
+  align-items: center;
 }
 
 .entries {
@@ -77,3 +78,15 @@
   border-bottom: 1px solid rgb(218, 220, 224);
 }
 
+.substitutions-input {
+  width: 40%;
+  padding: 8px 2px;
+}
+
+.generator-control a {
+  color: #5f6368;
+  text-decoration: none;
+}
+.generator-control a:hover {
+  text-decoration: underline;
+}
