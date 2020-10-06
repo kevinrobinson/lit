@@ -40,3 +40,17 @@
   text-anchor: start;
   fill: #04394b;
 }
+
+.axes text {
+  font-size: 9pt;
+}
+
+.y-axis-label {
+  transform: rotate(270deg);
+  text-anchor: middle;
+  fill: #5f6368;
+}
+
+.x-axis-label {
+  fill: #5f6368;
+}

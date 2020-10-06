@@ -71,10 +71,21 @@ export class DeltasService extends LitService {
   public sourcesForModel(modelName: string): Source[] {
     const modelSpec = this.appState.getModelSpec(modelName);
     const outputSpecKeys: LitName[] = ['RegressionScore', 'MulticlassPreds'];
-    return outputSpecKeys.flatMap(specKey => {
+    const s= outputSpecKeys.flatMap(specKey => {
       const fieldNames = findSpecKeys(modelSpec.output, [specKey]);
       return fieldNames.map(fieldName => ({modelName, specKey, fieldName}));
      });
+
+
+
+
+
+
+
+
+
+
+    return s.concat(s);
   }
 
   // Get a list of each time a generator was run, and the data points generated
@@ -89,7 +100,7 @@ export class DeltasService extends LitService {
       rulesByGeneration[key] = (rulesByGeneration[key] || []).concat(rule);
     });
 
-    let allDeltaRows = [];
+    let allDeltaRows: DeltaRow[] = [];
     const deltaRowsByGeneration = {};
     Object.keys(byGeneration).forEach(generationKey => {
       const ds = byGeneration[generationKey];

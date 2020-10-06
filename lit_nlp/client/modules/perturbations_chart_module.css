@@ -5,6 +5,17 @@
   flex-direction: column;
 }
 
+.source {
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.hidden {
+  display: none;
+}
+
 .chart-or-charts {
 	flex: 1;
   display: flex;
@@ -15,6 +26,11 @@
 .container {
 	flex: 1;
 	display: flex;
+}
+
+.chart {
+  flex: 1;
+  position: relative;
 }
 
 .info {
@@ -28,8 +44,7 @@
 .controls-holder {
   display: flex;
   flex-direction: row;
-  margin-bottom: 10px;
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: center;
 }
 
@@ -41,7 +56,27 @@
   padding: 0 8px;
 }
 
-.chart {
-	flex: 1;
-	position: relative;
+.navigation-strip {
+  display: flex;
+  align-items: center;
+}
+
+.navigation-buttons {
+  height: 16px;
+  padding-left: 5px;
+}
+
+.icon-button {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+}
+
+.icon-placeholder {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
 }

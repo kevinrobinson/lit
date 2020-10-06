@@ -76,7 +76,7 @@ export class PerturbationsTableModule extends LitModule {
   private readonly SENTENCE_COLUMN = 1;
   private readonly DELTA_COLUMN = 5;
 
-  @observable private filterSelected = true;
+  @observable private filterSelected = false;
   @observable private lastSelectedSourceIndex?: number;
 
   private onSelect(selectedRowIndices: number[]) {
@@ -142,7 +142,6 @@ export class PerturbationsTableModule extends LitModule {
         <div class="header-and-actions">
           <div class="header-text">
             Generated ${deltaRows.length === 1 ? '1 datapoint' : `${deltaRows.length} datapoints`}
-            from ${generationsCount === 1 ? '1 perturbation' : `${generationsCount} perturbations`}
           </div>
           <lit-checkbox
             label="Only show selected"

@@ -274,18 +274,26 @@ export class PerturbationsChartModule extends LitModule {
     /* Consider classification and regression predictions, and fan out by
      * each (model, outputKey, fieldName).
      */
-    return this.deltasService.sourcesForModel(this.model).map((source, index) => {
+    const sources =this.deltasService.sourcesForModel(this.model);
+    return sources.map((source, index) => {
       const deltaInfo = this.deltasService.deltaInfoFromSource(source);
+
+      const sourceClass = classMap({
+        'source': true,
+        'hidden': (index !== (this.lastSelectedSourceIndex ?? 0))
+      });
       return html`
-        ${this.renderControls(deltaInfo.generationKeys)}
-        <div class="chart-or-charts">
-          ${this.renderChartOrStackedCharts(source, index, deltaInfo)}
+        <div class=${sourceClass}>
+          ${this.renderControls(sources, index, deltaInfo.generationKeys)}
+          <div class="chart-or-charts">
+            ${this.renderChartOrStackedCharts(source, index, deltaInfo)}
+          </div>
         </div>
       `;
     });
   }
 
-  private renderControls(generationKeys: string[]) {
+  private renderControls(sources: Source[], sourceIndex: number, generationKeys: string[]) {
     const onFacetingChange = (e: Event) => {
       this.selectedGroupingKey = {
         [PERTURBATION_GROUPING_OPTION.key]: NO_GROUPING_OPTION.key,
@@ -306,7 +314,45 @@ export class PerturbationsChartModule extends LitModule {
             @change=${onFacetingChange}
           ></lit-checkbox>
         </div>
+        ${this.renderNavigationStrip(sources, sourceIndex)}
       </div>
+    `;
+  }
+
+  private renderNavigationStrip(sources: Source[], sourceIndex: number) {
+    if (sources.length === 1) {
+      return null;
+    }
+
+    const onChangeOffset = (delta: number) => {
+      const els = this.shadowRoot!.querySelectorAll('.source');
+      const nextIndex = sourceIndex + delta;
+      if (nextIndex < els.length && nextIndex >= 0) {
+        this.lastSelectedSourceIndex = nextIndex;
+       }
+    };
+
+    const previousButton = html`
+      <mwc-icon class='icon-button'
+        @click=${() => {onChangeOffset(-1);}}>
+        chevron_left
+      </mwc-icon>
+    `;
+    const nextButton = html`
+      <mwc-icon class='icon-button'
+        @click=${() => {onChangeOffset(1);}}>
+        chevron_right
+      </mwc-icon>
+    `;
+    const placeholderButton = html`<div class="icon-placeholder"> </div>`;
+    return html`
+      <span class="navigation-strip">
+        ${sourceIndex + 1} of ${sources.length} fields
+        <span class="navigation-buttons">
+          ${sourceIndex - 1 >= 0 ? previousButton : placeholderButton}
+          ${sourceIndex + 1 < sources.length ? nextButton : placeholderButton}
+        </span>
+      </span>
     `;
   }
 

@@ -53,10 +53,14 @@ interface ChartSizing {
     left: number;
     right: number;
   },
-  labelMargins: {
+  labelsMargins: {
     left: number;
     bottom: number;
-  }
+  },
+  titleMargins: {
+    left: number;
+    bottom: number;
+  };
   plotWidth: number;
   plotHeight: number;
   xScale: d3.AxisScale<number>;
@@ -130,20 +134,26 @@ export class PerturbationsChart extends ReactiveElement {
   
 
   private sizing(dims: Dims): ChartSizing {
-    // config
+    // define margins and constraints
     const maxPlotHeight = 350;  // avoid the chart being too sparse vertically
     const margins = {
       top: 10,
-      bottom: 30,
-      left: 30,
+      bottom: 35,
+      left: 40,
       right: 10
     };
-    const labelMargins = {
+
+    // positioning for labels and titles
+    const titleMargins = {
       left: 8,
       bottom: 10
     };
+    const labelsMargins = {
+      bottom: 5,
+      left: 11
+    };
 
-    // size
+    // compute sizing from that
     const plotWidth = dims.width;
     const plotHeight = Math.min(dims.height, maxPlotHeight);
 
@@ -164,7 +174,8 @@ export class PerturbationsChart extends ReactiveElement {
       xScale,
       yScale,
       margins,
-      labelMargins
+      labelsMargins,
+      titleMargins
     };
   }
 
@@ -323,21 +334,12 @@ export class PerturbationsChart extends ReactiveElement {
     }
     const el = this.shadowRoot!.querySelector('svg') as SVGElement;
     if (!el) {
-      console.log('  no svg...')
       return;
     }
 
-    // do this imperatively so we can use d3 to make nice axes
-    // console.log('updateAxes', this.dims);
-    const axesEl = el.querySelector('.axes') as SVGElement;
     const sizing = this.sizing(this.dims);
-    this.updateAxes(axesEl, sizing);
-    // tell UI we're ready for a proper LitElement render
-    // const key = JSON.stringify(source);
-    // this.isVisReadyForRender[key] = true;
-
-    const brushingEl = el.querySelector('.brushing') as SVGElement;
-    this.updateBrushing(brushingEl, sizing);
+    this.updateAxesAndLabels(el.querySelector('.axes') as SVGElement, sizing);
+    this.updateBrushing(el.querySelector('.brushing') as SVGElement, sizing);
   }
 
   onBrushed(brush, brushGroup) {
@@ -372,22 +374,32 @@ export class PerturbationsChart extends ReactiveElement {
   }
 
   updateBrushing(el: SVGElement, sizing: ChartSizing) {
-    const brush = d3.brush();
-    const {plotWidth, plotHeight} = sizing;
+    const {margins, plotWidth, plotHeight} = sizing;
+
+    const brush = d3.brush()
+      .extent([[margins.left, margins.top], [plotWidth, plotHeight]])
+
     const brushGroup = d3.select(el).html('').append('g')
       .attr('class', 'brush')
       .call(brush);
-    brush.extent([[0, 0], [plotWidth, plotHeight]]);
-    brush.on('end', () => {
-      this.onBrushed(brush, brushGroup);
-    });
 
+    brush.on('end', () => this.onBrushed(brush, brushGroup));
   }
 
-  updateAxes(el: SVGElement, sizing: ChartSizing) {
+  updateAxesAndLabels(el: SVGElement, sizing: ChartSizing) {
     const {yTicks} = this.visConfig;
-    const {plotWidth, plotHeight, xScale, yScale, margins, labelMargins} = sizing;
+    const {fieldName} = this.source;
+    const {
+      plotWidth,
+      plotHeight,
+      xScale,
+      yScale,
+      margins,
+      titleMargins,
+      labelsMargins
+    } = sizing;
 
+    // x-axis
     d3.select(el).html('');
     d3.select(el).append('g')
       .attr('id', 'xAxis')
@@ -397,27 +409,43 @@ export class PerturbationsChart extends ReactiveElement {
       )`)
       .call(d3.axisBottom(xScale));
 
-    const axisTitle = 'predictionzzzz';
+    // x-axis label
     d3.select(el).append('text')
-      .attr('transform', `translate(${plotWidth/2}, ${plotHeight! - margins.bottom}`)
+      .classed('x-axis-label', true)
+      .attr('transform', `translate(
+        ${margins.left + (plotWidth - margins.left - margins.right)/2},
+        ${plotHeight - labelsMargins.bottom}
+      )`)
       .style('text-anchor', 'middle')
-      .text(axisTitle);
+      .text(fieldName);
 
+    // y-axis
     // TODO(lit-dev) update ticks based on type of data available; see predictions module
     d3.select(el).append('g')
       .attr('id', 'yAxis')
       .attr('transform', `translate(${margins.left}, 0)`)
       .call(d3.axisLeft(yScale).ticks(yTicks));
 
-    const label = {
+    // y-axis label
+    d3.select(el).append('g')
+        .attr('transform', `translate(
+          ${labelsMargins.left},
+          ${margins.top + (plotHeight - margins.top - margins.bottom)/2}
+        )`)
+      .append('text')
+        .classed('y-axis-label', true)
+        .text('delta');
+
+    // title for chart, inset
+    const title = {
       text: this.labelText,
-      left: margins.left + labelMargins.left,
-      top: plotHeight! - margins.bottom - labelMargins.bottom
+      left: margins.left + titleMargins.left,
+      top: plotHeight! - margins.bottom - titleMargins.bottom
     };
     d3.select(el).append('text')
       .classed('chart-label', true)
-      .attr('transform', `translate(${label.left},  ${label.top})`)
-      .text(label.text);
+      .attr('transform', `translate(${title.left},  ${title.top})`)
+      .text(title.text);
   }
 }
 
