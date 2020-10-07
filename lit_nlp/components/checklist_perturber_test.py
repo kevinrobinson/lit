@@ -52,31 +52,26 @@ class ChecklistPerturberTest(absltest.TestCase):
             [])
 
     def test_change_names_front(self):
-        perturbations = self._generate('Kevin says hello.', 'change_names')
+        perturbations = self._generate('Sarah says hello', 'change_names')
         self.assertEqual(9 <= len(perturbations) <= 10, True)
         for perturbation in perturbations:
             words = perturbation.split(' ')
-            self.assertNotEqual(words[0], 'Kevin')
-            self.assertEqual(' '.join(words[1:]), 'says hello.')
+            self.assertNotEqual(words[0], 'Sarah')
+            self.assertEqual(' '.join(words[1:]), 'says hello')
 
     def test_change_names_multiple(self):
-        perturbations = self._generate('Kevin says hello to Greg', 'change_names')
+        perturbations = self._generate('Sarah says hello to Greg', 'change_names')
         self.assertEqual(9 <= len(perturbations) <= 10, True)
         for perturbation in perturbations:
             words = perturbation.split(' ')
-            self.assertNotEqual(words[0], 'Kevin')
+            self.assertNotEqual(words[0], 'Sarah')
             self.assertNotEqual(words[-1], 'Greg')
             self.assertEqual(' '.join(words[1:-1]), 'says hello to')
 
-    # showing baked in sociocultural perspectives
+    # showing how the library bakes in sociocultural perspectives
     def test_change_names_multiple(self):
-        perturbations = self._generate('Kevin says hello to Tyreek', 'change_names')
-        self.assertEqual(9 <= len(perturbations) <= 10, True)
-        for perturbation in perturbations:
-            words = perturbation.split(' ')
-            self.assertNotEqual(words[0], 'Kevin')
-            self.assertNotEqual(words[-1], 'Tyreek')
-            self.assertEqual(' '.join(words[1:-1]), 'says hello to')
+        perturbations = self._generate('Ayodele says hello to Tyreek', 'change_names')
+        self.assertEqual(len(perturbations), 0)
 
 
     # see https://github.com/marcotcr/checklist/pull/43
