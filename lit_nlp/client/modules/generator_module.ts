@@ -63,6 +63,8 @@ export class GeneratorModule extends LitModule {
   @observable datapointEdited: boolean = false;
   @observable substitutions = 'great -> terrible';
   @observable checklistRuleKey = 'add_negation';
+  @observable checklistLanguageKey = 'en_core_web_sm';
+  @observable checklistEditorTemplate = '{female1} visited their friend {female2} in {city}.'
   // When embedding indices is computed, this is the index of the selection.
   @observable embeddingSelection = 0;
 
@@ -336,7 +338,7 @@ export class GeneratorModule extends LitModule {
         <div class='generator-control'>
           <button @click=${onClick}>${generator}</button>
           <label class="input-label">Substitutions: </label>
-          <input type="text" class="substitutions-input"
+          <input type="text" class="text-input"
             @input=${updateSubstitutions}
             .value="${this.substitutions}" />
         </div>`;
@@ -356,6 +358,8 @@ export class GeneratorModule extends LitModule {
         return wordReplacer(generator);
       } else if (generator === 'checklist_perturber') {
         return this.renderChecklistGenerator(generator);
+      } else if (generator === 'checklist_autocompleter') {
+        return this.renderChecklistAutocompleter(generator);
       } else {
         return genericGenerator(generator);
       }
@@ -368,15 +372,24 @@ export class GeneratorModule extends LitModule {
   renderChecklistGenerator(generator: string) {
     const onClick = () => {
       this.handleGeneratorClick(generator, {
-        'rule_key': this.checklistRuleKey
+        'rule_key': this.checklistRuleKey,
+        'language_key': this.checklistLanguageKey
       });
     };
     const onChange = (e: Event) => {
       const input = e.target! as HTMLInputElement;
       this.checklistRuleKey = input.value;
     };
-    
-    const rules = [
+    const onLanguageKeyChange = (e: Event) => {
+      const input = e.target! as HTMLInputElement;
+      this.checklistLanguageKey = input.value;
+    };
+
+    interface Option {
+      value: string;
+      text: string;
+    }
+    const rules: Option[] = [
       { value: 'add_negation', text: 'add_negation' },
       { value: 'remove_negation', text: 'remove_negation' },
       { value: 'expand_contractions', text: 'expand_contractions' },
@@ -388,26 +401,92 @@ export class GeneratorModule extends LitModule {
       { value: 'change_names_last_only', text: 'change_names_last_only' },
       { value: 'add_typos', text: 'add_typos' }
     ];
+    const models: Option[] = [
+      { value: 'en_core_web_sm', text: 'English' }
+    ];
 
     // clang-format off
     return html`
       <div class='generator-control'>
-        <button @click=${onClick}>${generator}</button>
-        <label class="input-label">Perturbation:</label>
+        <button @click=${onClick}>checklist_perturber</button>
         <select class="dropdown" @change=${onChange}>
           <option value="" selected></option>
-          ${rules.map(rule => {
+          ${rules.map(option => {
             return html`
               <option
-                value="${rule.value}"
-                ?selected=${rule.value === this.checklistRuleKey}
+                value="${option.value}"
+                ?selected=${option.value === this.checklistRuleKey}
               >
-                ${rule.text}
+                ${option.text}
               </option>
             `;
           })}
         </select>
-        <a target="_blank" href="https://github.com/marcotcr/checklist">read more</a>
+        <select class="dropdown" @change=${onLanguageKeyChange}>
+          <option value="" selected></option>
+          ${models.map(option => {
+            return html`
+              <option
+                value="${option.value}"
+                ?selected=${option.value === this.checklistLanguageKey}
+              >
+                ${option.text}
+              </option>
+            `;
+          })}
+        </select>
+        <a target="_blank" href="https://github.com/marcotcr/checklist">docs</a>
+      </div>
+    `;
+    // clang-format on
+  }
+
+  renderChecklistAutocompleter(generator: string) {
+    const onClick = () => {
+      this.handleGeneratorClick(generator, {
+        'template': this.checklistEditorTemplate,
+        'language_key': this.checklistLanguageKey
+      });
+    };
+    const onTemplateChange = (e: Event) => {
+      const input = e.target! as HTMLInputElement;
+      this.checklistEditorTemplate = input.value;
+    };
+    const onLanguageKeyChange = (e: Event) => {
+      const input = e.target! as HTMLInputElement;
+      this.checklistLanguageKey = input.value;
+    };
+
+    interface Option {
+      value: string;
+      text: string;
+    }
+    const models: Option[] = [
+      { value: 'zh_core_web_sm', text: 'Chinese' },
+      { value: 'es_core_news_sm', text: 'Spanish' },
+      { value: 'en_core_web_sm', text: 'English' },
+    ];
+
+    // clang-format off
+    return html`
+      <div class='generator-control'>
+        <button @click=${onClick}>checklist_editor</button>
+        <input type="text" class="input-box text-input"
+          @input=${onTemplateChange} .value="${this.checklistEditorTemplate}" />
+        <select class="dropdown" @change=${onLanguageKeyChange}>
+          <option value="" selected></option>
+          ${models.map(option => {
+            return html`
+              <option
+                value="${option.value}"
+                ?selected=${option.value === this.checklistLanguageKey}
+              >
+                ${option.text}
+              </option>
+            `;
+          })}
+        </select>
+        <a target="_blank" href="https://github.com/marcotcr/checklist#lexicons-somewhat-multilingual">docs</a>
       </div>
     `;
     // clang-format on

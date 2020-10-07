@@ -39,12 +39,16 @@ JsonDict = types.JsonDict
 SPACIFY = 'spacify_transform'
 WRAP = 'wrap_in_array'
 
-# TODO(lit-dev) deps: checklist, spacy==2.2, python -m spacy download en_core_web_sm
+DEFAULT_LANGUAGE = 'en_core_web_sm'
+
+# TODO(lit-dev) deps: checklist, spacy==2.2
+# ... python -m spacy download en_core_web_sm / es_core_news_sm / etc.
+# ... not sure how to do this on-demand in Python
 class Generator(lit_components.Generator):
   def __init__(self, seed=43, swallow_add_negation_exceptions=True):
     self.swallow_add_negation_exceptions = swallow_add_negation_exceptions
-    # TODO(lit-dev) not sure how to close this and address ResourceWarning in tests
-    self.nlp = spacy.load('en_core_web_sm')
+    self.language_key = DEFAULT_LANGUAGE
+    self.nlp = None
     self.rng = random.Random(seed)
 
   # Define how to map `rule_key` values to checklist method calls 
@@ -65,6 +69,12 @@ class Generator(lit_components.Generator):
       'remove_negation': [SPACIFY, Perturb.remove_negation, {}],
     }
 
+  def _ensure_spacy_is_loaded(self, config: Optional[JsonDict] = None):
+    language_key = config.get('language_key', DEFAULT_LANGUAGE) if config else DEFAULT_LANGUAGE
+    if self.nlp is None or self.language_key != language_key:
+      logging.info('Loading language_key: %s...', language_key)
+      self.nlp = spacy.load(language_key)
+
   # override
   def generate(self,
                example: JsonDict,
@@ -72,6 +82,7 @@ class Generator(lit_components.Generator):
                dataset: lit_dataset.Dataset,
                config: Optional[JsonDict] = None) -> List[JsonDict]:
     del model  # Unused.
+    self._ensure_spacy_is_loaded(config) # could delay this further
     
     rule_keys = [config.get('rule_key')] if config else self._rules().keys()
     n_per_example = int(config.get('n_per_example', 10)) if config else 10
