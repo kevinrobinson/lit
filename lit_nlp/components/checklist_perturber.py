@@ -23,7 +23,6 @@ from typing import Dict, Tuple, Iterator, List, Text, Optional
 from absl import logging
 
 import checklist
-import spacy
 from checklist.editor import Editor
 from checklist.perturb import Perturb
 import spacy
@@ -37,20 +36,14 @@ from lit_nlp.lib import utils
 JsonDict = types.JsonDict
 
 
-# hacking around bug in checklist for add_negation,
-# see https://github.com/marcotcr/checklist/pull/43
-def try_or(fn, default=None):
-  try:
-    return fn()
-  except:
-    return default
-
 SPACIFY = 'spacify_transform'
 WRAP = 'wrap_in_array'
 
 # TODO(lit-dev) deps: checklist, spacy==2.2, python -m spacy download en_core_web_sm
-class Explorer(lit_components.Generator):
-  def __init__(self, seed=43):
+class Generator(lit_components.Generator):
+  def __init__(self, seed=43, swallow_add_negation_exceptions=True):
+    self.swallow_add_negation_exceptions = swallow_add_negation_exceptions
+    # TODO(lit-dev) not sure how to close this and address ResourceWarning in tests
     self.nlp = spacy.load('en_core_web_sm')
     self.rng = random.Random(seed)
 
@@ -126,7 +119,7 @@ class Explorer(lit_components.Generator):
       # run the perturbation
       input_format, perturbation, params = rule
       checklist_input = self._transform_input_text(input_text, input_format)
-      attempt = try_or(lambda: Perturb.perturb(checklist_input, perturbation, **params))
+      attempt = self._wrap_perturbation(rule_key, checklist_input, perturbation, params)
       if attempt is None:
         continue
       
@@ -139,3 +132,15 @@ class Explorer(lit_components.Generator):
         output_texts.add(text)
     
     return list(output_texts)
+
+  # hacking around bug in checklist for add_negation,
+  # see https://github.com/marcotcr/checklist/pull/43 
+  def _wrap_perturbation(self, rule_key: str, checklist_input: str, perturbation,
+    params: Dict) -> Optional[Dict]:
+    if self.swallow_add_negation_exceptions and rule_key == 'add_negation':
+      try:
+        return Perturb.perturb(checklist_input, perturbation, **params)
+      except:
+        return None
+
+    return Perturb.perturb(checklist_input, perturbation, **params)

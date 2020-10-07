@@ -39,7 +39,7 @@ from lit_nlp.components import projection
 from lit_nlp.components import scrambler
 from lit_nlp.components import umap
 from lit_nlp.components import word_replacer
-from lit_nlp.components import checklist
+from lit_nlp.components import checklist_perturber
 from lit_nlp.lib import caching
 from lit_nlp.lib import serialize
 from lit_nlp.lib import utils
@@ -304,7 +304,7 @@ class LitApp(object):
       self._generators = {
           'scrambler': scrambler.Scrambler(),
           'word_replacer': word_replacer.WordReplacer(),
-          'checklist': checklist.Explorer()
+          'checklist_perturber': checklist_perturber.Generator()
       }
 
     if interpreters is not None:

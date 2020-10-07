@@ -354,7 +354,7 @@ export class GeneratorModule extends LitModule {
       }
       if (generator === 'word_replacer') {
         return wordReplacer(generator);
-      } else if (generator === 'checklist') {
+      } else if (generator === 'checklist_perturber') {
         return this.renderChecklistGenerator(generator);
       } else {
         return genericGenerator(generator);
