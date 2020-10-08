@@ -97,6 +97,8 @@ class Server(object):
       # Add any dependencies you want to reload here, as:
       #   from lit_nlp.components import foobar
       #   importlib.reload(foobar)
+      from lit_nlp.components import template_expander
+      importlib.reload(template_expander)
       from lit_nlp.components import checklist_autocompleter
       importlib.reload(checklist_autocompleter)
       from lit_nlp.components import checklist_perturber

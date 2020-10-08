@@ -64,7 +64,11 @@ export class GeneratorModule extends LitModule {
   @observable substitutions = 'great -> terrible';
   @observable checklistRuleKey = 'add_negation';
   @observable checklistLanguageKey = 'en_core_web_sm';
-  @observable checklistEditorTemplate = '{female1} visited their friend {female2} in {city}.'
+  @observable checklistLanguageCode = 'english';
+  @observable checklistEditorTemplate = '{female} visited her friend in {place}.'
+  @observable checklistVocabSamples = '5';
+  @observable checklistVocabEditorOpen = false;
+  @observable checklistVocabMap:{[key: string]: string[]} = {};
   // When embedding indices is computed, this is the index of the selection.
   @observable embeddingSelection = 0;
 
@@ -360,6 +364,8 @@ export class GeneratorModule extends LitModule {
         return this.renderChecklistGenerator(generator);
       } else if (generator === 'checklist_autocompleter') {
         return this.renderChecklistAutocompleter(generator);
+      } else if (generator === 'template_expander') {
+        return this.renderLexicalEditor(generator);
       } else {
         return genericGenerator(generator);
       }
@@ -491,6 +497,139 @@ export class GeneratorModule extends LitModule {
     `;
     // clang-format on
   }
+
+  renderLexicalEditor(generator: string) {
+    const onClick = () => {
+      this.handleGeneratorClick(generator, {
+        'template': this.checklistEditorTemplate,
+        'n_per_example': this.checklistVocabSamples,
+        'language_code': this.checklistLanguageCode,
+        'vocab_map': this.checklistVocabMap
+      });
+    };
+    const onTemplateChange = (e: Event) => {
+      const input = e.target! as HTMLTextAreaElement;
+      this.checklistEditorTemplate = input.value;
+    };
+    const onChecklistLanguageCodeChange= (e: Event) => 
+      const input = e.target! as HTMLInputElement;
+      this.checklistLanguageCode = input.value;
+    };
+    const onChecklistVocabSamplesChange = (e: Event) => {
+      const input = e.target! as HTMLInputElement;
+      this.checklistVocabSamples = input.value;
+    };
+    const onToggleDialog = () => {
+      this.checklistVocabEditorOpen = !this.checklistVocabEditorOpen;
+    };
+
+    interface Option {
+      value: string;
+      text: string;
+    }
+    const samples: Option[] = [
+      { value: '1', text: 'one' },
+      { value: '5', text: 'five' },
+      { value: '20', text: 'twenty' },
+      { value: '100', text: 'hundred' },
+      { value: '1000', text: 'thousand' }
+    ];
+    const languageCodes: Option[] = [
+      { value: 'english', text: 'English' },
+      { value: 'portuguese', text: 'Portuguese' },
+      { value: 'spanish', text: 'Spanish' },
+      { value: 'german', text: 'German' }
+    ];
+
+    // clang-format off
+    return html`
+      <div class="template-container">
+        <button @click=${onClick}>template</button>
+        <textarea rows="4" class="input-box text-input" @change=${onTemplateChange}
+          >${this.checklistEditorTemplate}</textarea>
+        <mwc-icon class="icon-button" @click=${onToggleDialog}>
+          settings
+        </mwc-icon>
+        <select class="dropdown" @change=${onChecklistLanguageCodeChange}>
+          <option value="" selected></option>
+          ${languageCodes.map(option => {
+            return html`
+              <option value="${option.value}"
+                ?selected=${option.value === this.checklistLanguageCode}
+              >
+                ${option.text}
+              </option>
+            `;
+          })}
+        </select>
+        <select class="dropdown" @change=${onChecklistVocabSamplesChange}>
+          <option value="" selected></option>
+          ${samples.map(option => {
+            return html`
+              <option value="${option.value}"
+                ?selected=${option.value === this.checklistVocabSamples}
+              >
+                ${option.text}
+              </option>
+            `;
+          })}
+        </select>
+        <span> samples</span>
+        ${this.renderDialog(this.renderEditor(), this.checklistVocabEditorOpen, onToggleDialog)}
+      </div>
+    `;
+    // clang-format on
+  }
+
+  renderDialog(slot: any, isOpen: boolean, toggleFn: () => void) {
+    const hiddenClassMap = classMap({
+      hide: !isOpen
+    });
+    return html`
+      <div id="dialog-holder" class=${hiddenClassMap}>
+        <div id="overlay" class=${hiddenClassMap}></div>
+        <div id="dialog" class=${hiddenClassMap}>
+        ${slot}
+        <div id="buttons-container">
+        <div id="buttons">
+          <button @click=${toggleFn}>Close</button>
+        </div>
+      </div>
+      </div>
+    `;
+  }
+
+  renderEditor() {
+    const onVocabChange = (e: Event) => {
+      const input = e.target! as HTMLTextAreaElement;
+      const terms = input.value.split(/\n(\n)+/);
+      const vocabMap: {[key: string]: string[]} = {};
+      terms.forEach(body => {
+        const [keyWithColon, ...words] = body.trim().split('\n');
+        const key = keyWithColon.slice(0, -1);
+        vocabMap[key] = words.map(word => word.trim());
+      });
+      this.checklistVocabMap = vocabMap;
+    };
+
+    const vocabText = Object.keys(this.checklistVocabMap).flatMap(key => {
+      const wordLines = this.checklistVocabMap[key].map(word => `\t${word}`);
+      return [`${key}:`].concat(wordLines).concat(['\n']);
+    }).join('\n');
+
+    // const textStyles = styleMap({
+    //   'height': '100%',
+    //   'width': '100%',
+    //   'border': '1px solid #ccc',
+    //   'font-family': 'mono',
+    //   'white-space': 'pre'
+    // });
+    return html`
+      <h1>yoyo</h1>
+      <textarea rows="20" class="vocab-textarea" @input=${onVocabChange}>${vocabText}</textarea>
+    `;
+  }
+
 
   renderEntry(key: string, value: string, editable: boolean) {
     const isCategorical =
